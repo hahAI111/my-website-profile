@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify – Enter Portfolio</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="verify-page">
+  <div class="verify-container">
+    <div class="verify-card">
+      <div class="verify-icon">&#128274;</div>
+      <h1>Welcome</h1>
+      <p class="verify-subtitle">Please verify your identity to enter my portfolio.</p>
+
+      <form id="verifyForm">
+        <div class="form-group">
+          <label for="name">Your Name</label>
+          <input type="text" id="name" placeholder="e.g. Jane Doe" required>
+        </div>
+        <div class="form-group">
+          <label for="email">Your Email</label>
+          <input type="email" id="email" placeholder="e.g. jane@company.com" required>
+        </div>
+        <div id="errorMsg" class="error-msg"></div>
+        <button type="submit" class="btn btn-full">Enter Portfolio &rarr;</button>
+      </form>
+
+      <p class="verify-note">
+        &#9888; Disposable / temporary emails are blocked.<br>
+        Your info is only used to identify visitors.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('verifyForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorMsg = document.getElementById('errorMsg');
+      errorMsg.textContent = '';
+
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+
+      try {
+        const res = await fetch('/api/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = '/';
+        } else {
+          errorMsg.textContent = data.error || 'Verification failed.';
+        }
+      } catch (err) {
+        errorMsg.textContent = 'Network error. Please try again.';
+      }
+    });
+  </script>
+</body>
+</html>
