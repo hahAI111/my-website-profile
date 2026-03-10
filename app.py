@@ -23,16 +23,44 @@ SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER", "yourname@example.com")
 SMTP_PASS = os.environ.get("SMTP_PASS", "your-app-password")
 
-# PostgreSQL connection (Azure auto-sets AZURE_POSTGRESQL_CONNECTIONSTRING)
-# Azure Connection Strings become env vars with prefix: CUSTOMCONNSTR_, SQLCONNSTR_, etc.
-DATABASE_URL = (
+# PostgreSQL connection — Azure provides ADO.NET format, psycopg2 needs libpq format
+def _parse_pg_conn(raw):
+    """Convert 'Database=x;Server=x;User Id=x;Password=x' to libpq format."""
+    if not raw or raw.startswith("host="):
+        return raw  # already libpq or empty
+    parts = dict(p.split("=", 1) for p in raw.split(";") if "=" in p)
+    return (
+        f"host={parts.get('Server','')} "
+        f"dbname={parts.get('Database','')} "
+        f"user={parts.get('User Id','')} "
+        f"password={parts.get('Password','')}"
+    )
+
+_raw_pg = (
     os.environ.get("AZURE_POSTGRESQL_CONNECTIONSTRING")
     or os.environ.get("CUSTOMCONNSTR_AZURE_POSTGRESQL_CONNECTIONSTRING")
     or "host=localhost dbname=portfoliodb user=postgres password=postgres"
 )
+DATABASE_URL = _parse_pg_conn(_raw_pg)
 
-# Redis connection (Azure auto-sets AZURE_REDIS_CONNECTIONSTRING)
-REDIS_URL = os.environ.get("AZURE_REDIS_CONNECTIONSTRING", "")
+# Redis connection — Azure provides 'host:port,password=x,ssl=True,...'
+def _parse_redis_conn(raw):
+    """Convert Azure Redis connection string to a rediss:// URL."""
+    if not raw or raw.startswith("redis"):
+        return raw  # already a URL or empty
+    parts = dict(p.split("=", 1) for p in raw.split(",") if "=" in p)
+    host_port = raw.split(",")[0]  # e.g. host:6380
+    password = parts.get("password", "")
+    use_ssl = parts.get("ssl", "False").lower() == "true"
+    scheme = "rediss" if use_ssl else "redis"
+    return f"{scheme}://:{password}@{host_port}/0"
+
+_raw_redis = (
+    os.environ.get("AZURE_REDIS_CONNECTIONSTRING")
+    or os.environ.get("REDISCACHECONNSTR_azure_redis_cache")
+    or ""
+)
+REDIS_URL = _parse_redis_conn(_raw_redis)
 
 # Disposable / suspicious email domains (extend as needed)
 BLOCKED_DOMAINS = {
@@ -49,7 +77,9 @@ if REDIS_URL:
     try:
         redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
         redis_client.ping()
-    except Exception:
+        print("Redis connected successfully")
+    except Exception as e:
+        print(f"Redis connection failed: {e}")
         redis_client = None
 
 def cache_get(key):
@@ -78,7 +108,7 @@ def cache_delete(pattern):
 
 # ── Database (PostgreSQL) ──────────────────────────────────
 def get_db():
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = psycopg2.connect(DATABASE_URL, sslmode="require")
     return conn
 
 def init_db():
