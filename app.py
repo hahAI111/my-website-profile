@@ -231,6 +231,15 @@ def init_db():
         _seed_blog_posts(cur)
         conn.commit()
 
+    # Sync GitHub projects if empty
+    cur.execute("SELECT COUNT(*) FROM projects")
+    if cur.fetchone()[0] == 0:
+        conn.commit()
+        cur.close()
+        conn.close()
+        _seed_github_projects()
+        return
+
     cur.close()
     conn.close()
 
@@ -583,6 +592,44 @@ FROM weekly ORDER BY week DESC;
                 tag_id = cur.fetchone()[0]
                 cur.execute("INSERT INTO post_tags (post_id, tag_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                             (post_id, tag_id))
+
+
+def _seed_github_projects():
+    """Sync GitHub repos into projects table on first startup."""
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+    try:
+        resp = http_requests.get(
+            f"https://api.github.com/users/{GITHUB_USERNAME}/repos",
+            headers=headers, params={"sort": "updated", "per_page": 30}, timeout=15
+        )
+        resp.raise_for_status()
+        repos = resp.json()
+    except Exception as e:
+        print(f"GitHub sync on startup failed: {e}")
+        return
+
+    conn = get_db()
+    cur = conn.cursor()
+    for repo in repos:
+        if repo.get("fork"):
+            continue
+        cur.execute("""
+            INSERT INTO projects (github_repo, name, description, language, stars, forks,
+                                  open_issues, homepage, last_commit_at, synced_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+            ON CONFLICT (github_repo) DO UPDATE SET
+                name=EXCLUDED.name, description=EXCLUDED.description, language=EXCLUDED.language,
+                stars=EXCLUDED.stars, forks=EXCLUDED.forks, open_issues=EXCLUDED.open_issues,
+                homepage=EXCLUDED.homepage, last_commit_at=EXCLUDED.last_commit_at, synced_at=NOW()
+        """, (repo["full_name"], repo["name"], repo.get("description"),
+              repo.get("language"), repo.get("stargazers_count", 0), repo.get("forks_count", 0),
+              repo.get("open_issues_count", 0), repo.get("homepage"), repo.get("pushed_at")))
+    conn.commit()
+    cur.close()
+    conn.close()
+    print(f"GitHub projects seeded: {len([r for r in repos if not r.get('fork')])} repos")
 
 
 try:
