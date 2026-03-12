@@ -182,3 +182,7 @@ All documentation is in the [`docs/`](docs/) folder:
 
 - [BACKUP_AND_MIGRATION.md](guides/BACKUP_AND_MIGRATION.md) — What to back up, what you'll lose, and how to migrate to a new platform
 - [HOW_TO_DEPLOY.md](guides/HOW_TO_DEPLOY.md) — How to run the code locally and deploy to Railway, Render, Azure, or any VPS
+
+### Tutorials (in [`tutorials/`](tutorials/))
+
+- [AZURE_SETUP_GUIDE.md](tutorials/AZURE_SETUP_GUIDE.md) — Step-by-step Azure cloud setup: Resource Group, VNet, PostgreSQL, Redis, App Service, CI/CD, monitoring, and cost estimation
