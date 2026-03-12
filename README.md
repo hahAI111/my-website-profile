@@ -159,6 +159,7 @@ GitHub Actions will build and deploy to Azure App Service automatically.
 ## Related Docs
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System architecture, database design, data flow diagrams
+- [FLASK.md](FLASK.md) — How Flask powers the backend: all 22 routes, auth decorators, request flow
 - [DEPLOYMENT.md](DEPLOYMENT.md) — CI/CD pipeline, GitHub Actions workflow, deployment guide
 - [POSTGRESQL.md](POSTGRESQL.md) — Database schema, SQL operations, monitoring & maintenance
 - [REDIS.md](REDIS.md) — Cache strategy, core functions, Azure Redis monitoring
