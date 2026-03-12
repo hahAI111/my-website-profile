@@ -4,6 +4,16 @@ A full-stack personal portfolio website with admin dashboard, visitor analytics,
 
 **Live Site:** https://aimeelan.azurewebsites.net
 
+## Screenshots
+
+| Visitor Verification | Blog |
+|:---:|:---:|
+| ![Verify](screenshots/01-verify.png) | ![Blog](screenshots/02-blog.png) |
+
+| GitHub Projects | Admin Dashboard |
+|:---:|:---:|
+| ![Projects](screenshots/03-projects.png) | ![Admin](screenshots/04-admin.png) |
+
 ## Tech Stack
 
 | Layer | Technology | Purpose |
