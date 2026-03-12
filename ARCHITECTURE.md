@@ -41,7 +41,7 @@
              ▲                    ▲
              │                    │
          Private Endpoint      Private Endpoint
-         (VNet 内网访问)        (VNet 内网访问)
+         (VNet internal)       (VNet internal)
 
                                         ┌──────────────┐
                 Flask send_notification ─►  Gmail SMTP   │
@@ -68,26 +68,26 @@
 │                                                          │
 │  ┌─ Subnet: web ──────────────────────────────────────┐  │
 │  │  App Service (VNet Integration)                    │  │
-│  │  ← 出站流量走 VNet                                  │  │
+│  │  ← Outbound traffic routed through VNet            │  │
 │  └────────────────────────────────────────────────────┘  │
 │                                                          │
 │  ┌─ Subnet: db ───────────────────────────────────────┐  │
 │  │  PostgreSQL Flexible Server (Private Endpoint)     │  │
-│  │  ← 只接受 VNet 内部连接，公网不可访问                  │  │
+│  │  ← Only accepts VNet-internal connections          │  │
 │  └────────────────────────────────────────────────────┘  │
 │                                                          │
 │  ┌─ Subnet: redis ────────────────────────────────────┐  │
 │  │  Redis Cache (Private Endpoint)                    │  │
-│  │  ← 只接受 VNet 内部连接                              │  │
+│  │  ← Only accepts VNet-internal connections          │  │
 │  └────────────────────────────────────────────────────┘  │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
 ```
 
 **Key Concepts:**
-- **VNet Integration (出站)**: App Service 的出站流量（连数据库、连 Redis）走 VNet 内网，不走公网
-- **Private Endpoint (入站)**: PostgreSQL 和 Redis 通过 Private Endpoint 暴露在 VNet 内，外部网络无法直接访问
-- **公网只暴露 Web App**: 只有 `aimeelan.azurewebsites.net` 对外开放（Azure 自带 SSL）
+- **VNet Integration (outbound)**: App Service outbound traffic (to database, to Redis) goes through VNet internal network, not the public internet
+- **Private Endpoint (inbound)**: PostgreSQL and Redis are exposed within the VNet via Private Endpoints; external networks cannot directly access them
+- **Only the Web App is publicly exposed**: Only `aimeelan.azurewebsites.net` is internet-facing (with Azure-managed SSL)
 
 ---
 
@@ -95,8 +95,8 @@
 
 ### Tables
 
-#### `visitors` — 访客信息
-记录每一个通过验证页面进入网站的访客。
+#### `visitors` — Visitor Information
+Records every visitor who passes through the verification page.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -107,8 +107,8 @@
 | `token` | TEXT | Unique session token |
 | `created_at` | TIMESTAMP | Registration time |
 
-#### `click_logs` — 点击追踪
-记录已验证用户在页面上的每次点击行为（比如点了导航栏的 "About"、点了 LinkedIn 链接等）。
+#### `click_logs` — Click Tracking
+Records every click by verified users on page elements (e.g., clicking "About" in the nav bar, LinkedIn link, etc.).
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -118,8 +118,8 @@
 | `page` | TEXT | Which page they were on |
 | `clicked_at` | TIMESTAMP | When they clicked |
 
-#### `messages` — 留言/联系
-访客通过 Contact 表单发送给网站主人的消息。
+#### `messages` — Contact Messages
+Messages sent by visitors to the site owner via the Contact form.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -130,8 +130,8 @@
 | `message` | TEXT | Message content |
 | `sent_at` | TIMESTAMP | When it was sent |
 
-#### `page_views` — 页面浏览追踪
-记录每次页面访问的详细信息，用于分析访客行为。
+#### `page_views` — Page View Tracking
+Records detailed information for every page visit, used for visitor behavior analysis.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -145,8 +145,8 @@
 | `screen_width` | INTEGER | Screen width in px (device classification) |
 | `created_at` | TIMESTAMP | When the page was viewed |
 
-#### `visitor_sessions` — 访客会话
-追踪单次访问的会话生命周期。
+#### `visitor_sessions` — Visitor Sessions
+Tracks the lifecycle of a single visit session.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -157,8 +157,8 @@
 | `ended_at` | TIMESTAMP | Last activity |
 | `page_count` | INTEGER | Pages viewed in session |
 
-#### `posts` — 博客文章
-存储 Markdown 格式的博客文章。
+#### `posts` — Blog Posts
+Stores blog posts in Markdown format.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -173,22 +173,22 @@
 | `updated_at` | TIMESTAMP | Last edit |
 | `created_at` | TIMESTAMP | Creation time |
 
-#### `tags` — 标签
+#### `tags` — Tags
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | SERIAL PK | Auto-increment ID |
 | `name` | TEXT UNIQUE | Tag name (e.g. `Azure`, `Python`) |
 
-#### `post_tags` — 文章标签关联 (多对多)
+#### `post_tags` — Post-Tag Association (Many-to-Many)
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `post_id` | INTEGER FK → posts(id) | Post reference |
 | `tag_id` | INTEGER FK → tags(id) | Tag reference |
 
-#### `projects` — GitHub 项目展示
-从 GitHub API 同步的仓库信息。
+#### `projects` — GitHub Project Showcase
+Repository information synced from the GitHub API.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -221,17 +221,17 @@ posts (N) ←──→ (N) tags    (via post_tags)
 projects (standalone, synced from GitHub API)
 ```
 
-每个 visitor 可以有多条 click_logs、messages、page_views 和 visitor_sessions。  
-posts 和 tags 是多对多关系，通过 post_tags 中间表连接。  
-projects 独立于访客系统，通过 admin 触发 GitHub API 同步。
+Each visitor can have multiple click_logs, messages, page_views, and visitor_sessions.  
+Posts and tags have a many-to-many relationship via the post_tags junction table.  
+Projects are independent of the visitor system, synced via admin-triggered GitHub API calls.
 
 ---
 
-## Redis Cache — 作用与策略
+## Redis Cache — Role & Strategy
 
-Redis 在这个项目里的作用是 **缓存 Admin Stats API 的结果**，减少不必要的数据库查询。
+Redis serves as a **cache layer for read-heavy API responses**, reducing unnecessary database queries.
 
-### 工作流程
+### Workflow
 
 ```
 GET /api/admin/stats
@@ -240,84 +240,84 @@ GET /api/admin/stats
   cache_get("stats:overview")
         │
    ┌────┴────┐
-   │ 有缓存？ │
+   │ Cached?  │
    └────┬────┘
     Yes │      No
     ┌───▼──┐  ┌──▼────────────┐
-    │返回   │  │查询 PostgreSQL │
-    │缓存   │  │  COUNT(*)×3   │
-    │数据   │  │  + 最近10条    │
+    │Return │  │Query PostgreSQL│
+    │cached │  │  COUNT(*)×3   │
+    │data   │  │  + latest 10  │
     └──────┘  └──────┬────────┘
                      │
                      ▼
               cache_set("stats:overview", data, ttl=60)
                      │
                      ▼
-                  返回数据
+                  Return data
 ```
 
-### 缓存失效
-- **TTL**: 60 秒后自动过期
-- **主动清除**: 当有新 message 写入时，调用 `cache_delete("stats:*")` 清除所有 stats 缓存
-- **降级**: 如果 Redis 连不上，直接查库，不影响功能
+### Cache Invalidation
+- **TTL**: Automatically expires after 60 seconds
+- **Active clearing**: When a new message is submitted, `cache_delete("stats:*")` clears all stats caches
+- **Degradation**: If Redis is unreachable, queries go directly to the database without affecting functionality
 
-### 为什么用 Redis 而不是内存缓存？
-- Azure App Service 可能有多个 worker 进程，内存缓存不共享
-- Redis 是独立服务，所有 worker 共享同一份缓存
-- 重启 App Service 后缓存依然在（直到 TTL 过期）
+### Why Redis Instead of In-Memory Cache?
+- Azure App Service may have multiple worker processes; in-memory cache isn't shared across them
+- Redis is an independent service — all workers share the same cache
+- Cache persists across App Service restarts (until TTL expiration)
 
 ---
 
-## Data Flow — 完整用户旅程
+## Data Flow — Complete User Journey
 
 ```
-1. 用户访问 https://aimeelan.azurewebsites.net
+1. User visits https://aimeelan.azurewebsites.net
    │
    ▼
-2. Flask 检查 session → 未验证 → 返回 verify.html
+2. Flask checks session → not verified → returns verify.html
    │
    ▼
-3. 用户输入 Name + Email → POST /api/verify
+3. User enters Name + Email → POST /api/verify
    │
-   ├── 邮箱格式验证 (regex)
-   ├── 屏蔽域名检查 (BLOCKED_DOMAINS)
-   ├── 写入 PostgreSQL visitors 表
-   └── 设置 session: verified=True, visitor_id, name, email
-   │
-   ▼
-4. 页面跳转到 / → Flask 检查 session → 已验证 → 返回 index.html
+   ├── Email format validation (regex)
+   ├── Blocked domain check (BLOCKED_DOMAINS)
+   ├── Insert into PostgreSQL visitors table
+   └── Set session: verified=True, visitor_id, name, email
    │
    ▼
-5. script.js 自动发送 POST /api/pageview（页面、referrer、屏幕宽度、UA）
-   → 写入 page_views 表 + 创建/更新 visitor_sessions
+4. Page redirects to / → Flask checks session → verified → returns index.html
    │
    ▼
-6. 用户浏览页面，每次点击带 data-track 属性的元素
-   → script.js 发送 POST /api/track → 写入 click_logs 表
+5. script.js auto-sends POST /api/pageview (page, referrer, screen width, UA)
+   → Writes to page_views table + creates/updates visitor_sessions
    │
    ▼
-7. 用户可以访问 /blog → 浏览博客文章（5 篇预置文章关于 Azure AI Support）
-   → GET /api/posts 支持标签筛选和分页
-   → GET /api/posts/<slug> 获取完整 Markdown 内容，前端用 marked.js 渲染
+6. User browses pages; each click on elements with data-track attribute
+   → script.js sends POST /api/track → writes to click_logs table
    │
    ▼
-8. 用户可以访问 /projects → 查看从 GitHub 同步的项目
-   → GET /api/projects 返回项目列表（语言、stars、forks 等）
+7. User can visit /blog → browse blog posts (5 pre-seeded articles about Azure AI Support)
+   → GET /api/posts supports tag filtering and pagination
+   → GET /api/posts/<slug> returns full Markdown content, rendered by marked.js on frontend
    │
    ▼
-9. 用户填写 Contact 表单 → POST /api/contact
-   ├── 写入 messages 表
-   ├── 清除 Redis 缓存 (stats:*)
-   └── 发送 Gmail 通知给网站主人
+8. User can visit /projects → view GitHub-synced projects
+   → GET /api/projects returns project list (language, stars, forks, etc.)
    │
    ▼
-10. 网站主人访问 /admin → 登录后查看完整数据仪表盘
-    ├── POST /api/admin/login (bcrypt 密码验证)
-    ├── GET /api/admin/stats → KPI 卡片 + 6 个 Chart.js 图表
-    ├── GET /api/admin/visitors → 分页访客列表 + 域名筛选
-    ├── GET /api/admin/retention → 留存分析（Day 0/1/7/30 cohorts）
-    ├── GET /api/admin/export/<table> → CSV 下载
-    └── POST /api/projects/sync → 一键同步 GitHub 仓库
+9. User fills out Contact form → POST /api/contact
+   ├── Writes to messages table
+   ├── Clears Redis cache (stats:*)
+   └── Sends Gmail notification to site owner
+   │
+   ▼
+10. Site owner visits /admin → logs in to view full data dashboard
+    ├── POST /api/admin/login (bcrypt password verification)
+    ├── GET /api/admin/stats → KPI cards + 6 Chart.js charts
+    ├── GET /api/admin/visitors → paginated visitor list + domain filtering
+    ├── GET /api/admin/retention → retention analysis (Day 0/1/7/30 cohorts)
+    ├── GET /api/admin/export/<table> → CSV download
+    └── POST /api/projects/sync → one-click GitHub repo sync
 ```
 
 ---
@@ -357,15 +357,15 @@ GitHub Actions (.github/workflows/main_aimeelan.yml)
         │
         ├── 1. Checkout code
         ├── 2. Setup Python 3.14
-        ├── 3. pip install -r requirements.txt (验证构建)
-        ├── 4. Upload artifact (排除 venv)
+        ├── 3. pip install -r requirements.txt (build verification)
+        ├── 4. Upload artifact (exclude venv)
         │
         ▼
         ├── 5. Azure Login (OIDC, federated credential)
         └── 6. Deploy to Azure App Service (Oryx build)
                 │
                 ▼
-            Oryx 在 Azure 上再次 pip install
+            Oryx runs pip install again on Azure
                 │
                 ▼
             gunicorn --bind=0.0.0.0:8000 app:app

@@ -1,330 +1,323 @@
-# 从零到上线：一个人搭建全栈 Azure 个人网站的完整故事
+# From Zero to Production: Building a Full-Stack Azure Portfolio Website Solo
 
-> **作者**：AimeeWang — Microsoft Technical Support Engineer (AI)  
-> **项目地址**：[github.com/hahAI111/aimeewebpage](https://github.com/hahAI111/aimeewebpage)  
-> **线上地址**：[aimeelan.azurewebsites.net](https://aimeelan.azurewebsites.net)
-
----
-
-## 前言
-
-这不是一份教程，是一个真实的项目故事。
-
-从"我想要一个网站"这句话开始，到一个拥有访客验证、博客系统、GitHub 项目同步、
-Admin 数据分析面板、Redis 缓存、PostgreSQL 数据库、CI/CD 自动部署的全栈应用——
-一步一步，包括每一个踩过的坑和解决方案。
-
-**这个项目展示的不仅是最终结果，更是解决问题的思路。**
+> **Author**: AimeeWang — Microsoft Technical Support Engineer (AI)  
+> **Repository**: [github.com/hahAI111/aimeewebpage](https://github.com/hahAI111/aimeewebpage)  
+> **Live Site**: [aimeelan.azurewebsites.net](https://aimeelan.azurewebsites.net)
 
 ---
 
-## 目录
+## Preface
 
-- [第一章：起点 — 一句话开始的项目](#第一章起点--一句话开始的项目)
-- [第二章：从静态页面到 Flask 后端](#第二章从静态页面到-flask-后端)
-- [第三章：上云 — 迁移到 Azure 全家桶](#第三章上云--迁移到-azure-全家桶)
-- [第四章：第一个大坑 — 连接字符串之谜](#第四章第一个大坑--连接字符串之谜)
-- [第五章：Git 与部署 — 让代码自动上线](#第五章git-与部署--让代码自动上线)
-- [第六章：功能爆发 — 四大模块一次上线](#第六章功能爆发--四大模块一次上线)
-- [第七章：细节打磨 — 一致性与品牌统一](#第七章细节打磨--一致性与品牌统一)
-- [第八章：503 — 网站挂了](#第八章503--网站挂了)
-- [第九章：自动化 — 让 GitHub 项目自己同步](#第九章自动化--让-github-项目自己同步)
-- [第十章：409 部署冲突 — 流水线撞车](#第十章409-部署冲突--流水线撞车)
-- [第十一章：文档即产品](#第十一章文档即产品)
-- [技术栈总览](#技术栈总览)
-- [最终项目结构](#最终项目结构)
-- [技能展示总结](#技能展示总结)
-- [写在最后](#写在最后)
+This isn't a tutorial — it's the real story of a project.
+
+Starting from "I want a website," this project evolved into a full-stack application with visitor verification, a blog system, GitHub project sync, admin analytics dashboard, Redis caching, PostgreSQL database, and CI/CD auto-deployment — step by step, including every pitfall and its solution.
+
+**This project showcases not just the final product, but the problem-solving process behind it.**
 
 ---
 
-## 第一章：起点 — 一句话开始的项目
+## Table of Contents
 
-**需求**："帮我建一个网站。"
+- [Chapter 1: The Starting Point — A Single Request](#chapter-1-the-starting-point--a-single-request)
+- [Chapter 2: From Static Pages to Flask Backend](#chapter-2-from-static-pages-to-flask-backend)
+- [Chapter 3: Going Cloud — Migrating to Azure](#chapter-3-going-cloud--migrating-to-azure)
+- [Chapter 4: The First Major Pitfall — The Connection String Mystery](#chapter-4-the-first-major-pitfall--the-connection-string-mystery)
+- [Chapter 5: Git & Deployment — Automating the Release Process](#chapter-5-git--deployment--automating-the-release-process)
+- [Chapter 6: Feature Explosion — Four Modules in One Release](#chapter-6-feature-explosion--four-modules-in-one-release)
+- [Chapter 7: Polish — Consistency & Brand Unification](#chapter-7-polish--consistency--brand-unification)
+- [Chapter 8: 503 — The Site Went Down](#chapter-8-503--the-site-went-down)
+- [Chapter 9: Automation — Self-Syncing GitHub Projects](#chapter-9-automation--self-syncing-github-projects)
+- [Chapter 10: 409 Deployment Conflict — Pipeline Collision](#chapter-10-409-deployment-conflict--pipeline-collision)
+- [Chapter 11: Documentation as Product](#chapter-11-documentation-as-product)
+- [Tech Stack Overview](#tech-stack-overview)
+- [Final Project Structure](#final-project-structure)
+- [Skills Demonstrated](#skills-demonstrated)
+- [Final Thoughts](#final-thoughts)
 
-就这一句话。没有设计稿，没有需求文档，没有技术选型会议。
+---
 
-**思路**：先做最小可用版本（MVP） — 一个简洁的个人介绍页面。
+## Chapter 1: The Starting Point — A Single Request
 
-**方案**：
-- 纯前端起步：HTML + CSS + JavaScript
-- 响应式设计，适配手机和桌面
-- 包含：自我介绍、技能展示、联系方式
+**Requirement**: "Help me build a website."
+
+That's it. No design mockups, no requirements document, no tech review meeting.
+
+**Approach**: Build a Minimum Viable Product (MVP) first — a clean personal introduction page.
+
+**Plan**:
+- Start with pure frontend: HTML + CSS + JavaScript
+- Responsive design for mobile and desktop
+- Include: self-introduction, skills showcase, contact info
 
 ```
-第一个文件结构：
+Initial file structure:
 static/
-├── index.html    ← 主页面
-├── style.css     ← 样式
-└── script.js     ← 交互
+├── index.html    ← Main page
+├── style.css     ← Styles
+└── script.js     ← Interactions
 ```
 
-**技能点**：HTML5 语义化、CSS Flexbox/Grid 布局、响应式设计、DOM 操作
+**Skills**: HTML5 semantics, CSS Flexbox/Grid layout, responsive design, DOM manipulation
 
 ---
 
-## 第二章：从静态页面到 Flask 后端
+## Chapter 2: From Static Pages to Flask Backend
 
-静态页面做完后，新需求来了：
+After the static page was done, new requirements appeared:
 
-> "要有访客验证、点击追踪、留言功能、防钓鱼邮件检测、社交链接、邮件通知..."
+> "I need visitor verification, click tracking, a contact form, anti-phishing email detection, social links, email notifications..."
 
-纯前端做不了这些。需要后端。
+Pure frontend can't handle these. A backend was needed.
 
-**技术选型**：
-- **语言**：Python（我最熟悉的语言）
-- **框架**：Flask（轻量、灵活、够用）
-- **数据库**：先用 SQLite（开发方便，后面再换）
+**Tech Choices**:
+- **Language**: Python (my strongest language)
+- **Framework**: Flask (lightweight, flexible, sufficient)
+- **Database**: SQLite first (easy for development, swap later)
 
-**设计思路**：
+**Design**:
 ```
-浏览器 → Flask API → SQLite
+Browser → Flask API → SQLite
            │
-           ├── /api/verify   → 访客注册验证
-           ├── /api/track    → 点击行为追踪
-           ├── /api/contact  → 留言 + 邮件通知
-           └── /              → 静态文件服务
+           ├── /api/verify   → Visitor registration & verification
+           ├── /api/track    → Click behavior tracking
+           ├── /api/contact  → Messages + email notification
+           └── /              → Static file server
 ```
 
-**安全设计**（这些不是事后想到的，是一开始就设计进去的）：
-- 封杀一次性邮箱域名（tempmail.com、mailinator.com 等 15 个）
-- 邮箱格式正则验证
-- IP 地址 SHA-256 哈希存储（隐私保护，不存原始 IP）
-- User-Agent 截取前 500 字符（防超长字符串攻击）
+**Security design** (built in from the start, not an afterthought):
+- Block disposable email domains (tempmail.com, mailinator.com, etc. — 15 domains)
+- Email format regex validation
+- IP address SHA-256 hashed storage (privacy protection — raw IPs never stored)
+- User-Agent truncated to 500 characters (prevents oversized string attacks)
 
-**技能点**：Python Flask、RESTful API 设计、SQLite、SMTP 邮件发送、安全防护思维
+**Skills**: Python Flask, RESTful API design, SQLite, SMTP email, security-first mindset
 
 ---
 
-## 第三章：上云 — 迁移到 Azure 全家桶
+## Chapter 3: Going Cloud — Migrating to Azure
 
-本地跑得好好的，但一个个人网站不能永远在自己电脑上跑。决定上 Azure。
+It worked great locally, but a personal website can't run on your own machine forever. Time to go to Azure.
 
-**为什么选 Azure？** 因为我在 Microsoft 工作，对 Azure 最熟悉，而且可以利用公司资源学习。
+**Why Azure?** I work at Microsoft, I'm most familiar with Azure, and I can leverage company resources to learn.
 
-**架构升级**：
+**Architecture upgrade**:
 
 ```
-之前：Flask → SQLite（单文件数据库）
-之后：Flask → Azure PostgreSQL（云数据库）
-                → Azure Redis（缓存层）
-                → Azure App Service（托管运行）
+Before: Flask → SQLite (single-file database)
+After:  Flask → Azure PostgreSQL (cloud database)
+                → Azure Redis (cache layer)
+                → Azure App Service (managed hosting)
 ```
 
-**创建的 Azure 资源**：
+**Azure resources created**:
 
-| 资源 | 名称 | 规格 | 用途 |
+| Resource | Name | Spec | Purpose |
 |---|---|---|---|
-| App Service | aimeelan | Linux, Python 3.14 | 运行 Flask 应用 |
-| PostgreSQL Flexible Server | aimeelan-server | | 持久化数据存储 |
-| Azure Cache for Redis | aimee-cache | Basic SKU | 缓存加速 |
+| App Service | aimeelan | Linux, Python 3.14 | Run Flask application |
+| PostgreSQL Flexible Server | aimeelan-server | | Persistent data storage |
+| Azure Cache for Redis | aimee-cache | Basic SKU | Cache acceleration |
 
-**代码改动**：
-- `sqlite3` → `psycopg2`（PostgreSQL 驱动）
-- `?` 占位符 → `%s`（PostgreSQL 语法）
-- `lastrowid` → `RETURNING id`（PostgreSQL 特性）
-- 新增 `redis` 缓存层
-- 新增 `sslmode="require"`（Azure 强制 SSL）
+**Code changes**:
+- `sqlite3` → `psycopg2` (PostgreSQL driver)
+- `?` placeholders → `%s` (PostgreSQL syntax)
+- `lastrowid` → `RETURNING id` (PostgreSQL feature)
+- Added `redis` cache layer
+- Added `sslmode="require"` (Azure enforces SSL)
 
-**技能点**：Azure 云服务、SQLite→PostgreSQL 迁移、数据库方言差异、SSL 安全连接、Redis 缓存架构
+**Skills**: Azure cloud services, SQLite→PostgreSQL migration, database dialect differences, SSL connections, Redis cache architecture
 
 ---
 
-## 第四章：第一个大坑 — 连接字符串之谜
+## Chapter 4: The First Major Pitfall — The Connection String Mystery
 
-### 问题
+### Problem
 
-部署到 Azure 后，网站打不开。504 Gateway Timeout。
+After deploying to Azure, the website wouldn't load. 504 Gateway Timeout.
 
-### 排查过程
+### Investigation
 
-1. **检查代码**：本地跑得通 ✓
-2. **检查 Azure 配置**：App Service 运行正常 ✓
-3. **检查数据库**：Azure PostgreSQL 在线 ✓
-4. **查看日志**：`psycopg2.OperationalError: connection failed`
+1. **Check code**: Works locally ✓
+2. **Check Azure config**: App Service running ✓
+3. **Check database**: Azure PostgreSQL online ✓
+4. **Check logs**: `psycopg2.OperationalError: connection failed`
 
-问题出在 **连接字符串格式**。
+The issue was the **connection string format**.
 
-### 根因
+### Root Cause
 
-Azure 门户提供的连接字符串是 **ADO.NET 格式**（给 C# 用的）：
+Azure Portal provides connection strings in **ADO.NET format** (designed for C#):
 ```
 Server=aimeelan-server.postgres.database.azure.com;Database=aimeelan-database;Port=5432;User Id=xxx;Password=xxx;
 ```
 
-但 Python 的 psycopg2 需要 **libpq 格式**：
+But Python's psycopg2 requires **libpq format**:
 ```
 host=aimeelan-server.postgres.database.azure.com dbname=aimeelan-database user=xxx password=xxx
 ```
 
-Redis 也是同样的问题——Azure 给的格式和 Python redis 库需要的格式不一样。
+Redis had the same problem — Azure's format doesn't match what the Python redis library expects.
 
-### 解决方案
+### Solution
 
-写了两个解析函数，自动转换格式：
+Wrote two parser functions to automatically convert formats:
 
 ```python
 def _parse_pg_conn(raw):
-    """ADO.NET 格式 → libpq 格式"""
+    """ADO.NET format → libpq format"""
     if not raw or raw.startswith("host="):
-        return raw  # 已经是正确格式
+        return raw  # Already in correct format
     parts = dict(p.split("=", 1) for p in raw.split(";") if "=" in p)
     return f"host={parts['Server']} dbname={parts['Database']} user={parts['User Id']} password={parts['Password']}"
 
 def _parse_redis_conn(raw):
-    """Azure Redis 格式 → redis:// URI 格式"""
+    """Azure Redis format → redis:// URI format"""
     # aimee-cache.redis.cache.windows.net:6380,password=xxx,ssl=True
     # → rediss://:xxx@aimee-cache.redis.cache.windows.net:6380/0
 ```
 
-### 教训
+### Lesson Learned
 
-> **Azure 提供的连接字符串不一定能直接用。** 不同语言、不同驱动需要不同格式。
-> 遇到连接失败，第一件事：**打印连接字符串的格式，对比驱动文档要求的格式**。
+> **Azure-provided connection strings may not work out of the box.** Different languages and drivers require different formats.
+> When facing connection failures, the first step: **print the connection string format and compare it with the driver documentation.**
 
-**技能点**：问题诊断、日志分析、连接字符串解析、Azure Service Connector 机制理解
+**Skills**: Problem diagnosis, log analysis, connection string parsing, Azure Service Connector understanding
 
 ---
 
-## 第五章：Git 与部署 — 让代码自动上线
+## Chapter 5: Git & Deployment — Automating the Release Process
 
-### 初始化 Git
+### Initializing Git
 
 ```bash
 git init
 git remote add origin https://github.com/hahAI111/aimeewebpage.git
 ```
 
-第一次 push 就遇到了问题——Azure 自动创建的 repo 里已有 workflow 文件，
-导致 `git push` 被拒绝（双方都有独立的提交历史）。
+The very first push hit an issue — Azure had already auto-created a workflow file in the repo, causing `git push` to be rejected (both sides had independent commit histories).
 
-**解决**：
+**Solution**:
 ```bash
-git pull origin main --allow-unrelated-histories  # 合并两个不相关的历史
+git pull origin main --allow-unrelated-histories  # Merge two unrelated histories
 git push origin main
 ```
 
-### CI/CD 流水线
+### CI/CD Pipeline
 
-Azure 在创建 App Service 时自动生成了 GitHub Actions 配置文件
-（`.github/workflows/main_aimeelan.yml`）。
+Azure automatically generated a GitHub Actions config file (`.github/workflows/main_aimeelan.yml`) when creating the App Service.
 
-从此，每次 `git push` 到 main 分支：
-1. GitHub Actions 自动拉取代码
-2. 在 Ubuntu 虚拟机上安装 Python + 依赖
-3. 打包代码上传到 Azure App Service
-4. Azure 自动重启应用
+From then on, every `git push` to the main branch:
+1. GitHub Actions pulls the latest code
+2. Installs Python + dependencies on an Ubuntu VM
+3. Packages and uploads the code to Azure App Service
+4. Azure automatically restarts the application
 
-**从写代码到上线，只需要 `git push` 一条命令。**
+**From writing code to going live — just one `git push` command.**
 
-**技能点**：Git 版本控制、GitHub Actions CI/CD、OIDC 认证、自动化部署
+**Skills**: Git version control, GitHub Actions CI/CD, OIDC authentication, automated deployment
 
 ---
 
-## 第六章：功能爆发 — 四大模块一次上线
+## Chapter 6: Feature Explosion — Four Modules in One Release
 
-网站基础版上线后，一次性规划了四个大功能：
+After the basic site went live, four major features were planned at once:
 
-### 1. Admin 数据分析面板
-
-```
-GET /api/admin/stats → 8 条 SQL 查询 → Chart.js 可视化
-
-包含：
-├── KPI 卡片（访客数/PV 数/点击数/留言数）
-├── 30 天访客趋势折线图
-├── 30 天 PV 趋势折线图
-├── 热门点击元素 Top 15 柱状图
-├── 热门页面 Top 10（含平均停留时间）
-├── 邮箱域名分布（了解访客公司）
-├── 设备类型分布饼图（Mobile/Tablet/Desktop）
-├── 最新留言列表
-├── 热门文章排行
-└── 留存分析（Day 0/1/7/30 回访率）
-```
-
-**SQL 亮点**：留存分析用了 CTE（WITH 子句）+ 条件计数 + 日期运算，
-是整个项目中最复杂的一条查询。
-
-### 2. 博客 CMS 系统
-
-设计了完整的内容管理模型：
+### 1. Admin Analytics Dashboard
 
 ```
-posts (文章) ←→ post_tags (关联表) ←→ tags (标签)
+GET /api/admin/stats → 8 SQL queries → Chart.js visualization
 
-特性：
-├── Markdown 渲染（marked.js + highlight.js 代码高亮）
-├── 标签筛选
-├── 分页查询
-├── 浏览量统计
-└── 5 篇种子文章（Azure AI、Python 工具、PostgreSQL 优化、网络架构、成长故事）
+Includes:
+├── KPI cards (visitors / PVs / clicks / messages)
+├── 30-day visitor trend line chart
+├── 30-day PV trend line chart
+├── Top 15 clicked elements bar chart
+├── Top 10 pages with average duration
+├── Email domain distribution (visitor company insights)
+├── Device type distribution pie chart (Mobile/Tablet/Desktop)
+├── Recent messages list
+├── Top blog posts ranking
+└── Retention analysis (Day 0/1/7/30 return rates)
 ```
 
-### 3. GitHub 项目展示
+**SQL highlight**: The retention analysis uses CTEs (WITH clauses) + conditional counting + date arithmetic — the most complex query in the entire project.
+
+### 2. Blog CMS System
+
+Designed a complete content management model:
 
 ```
-GitHub API → projects 表 → /projects 页面
+posts (articles) ←→ post_tags (junction table) ←→ tags
 
-特性：
-├── 自动拉取 GitHub 仓库信息
-├── 显示语言、Star、Fork、最后更新
-├── Upsert 同步（ON CONFLICT DO UPDATE）
-└── 精选项目置顶
+Features:
+├── Markdown rendering (marked.js + highlight.js code highlighting)
+├── Tag filtering
+├── Paginated queries
+├── View counter
+└── 5 seed articles (Azure AI, Python tools, PostgreSQL optimization, networking, career)
 ```
 
-### 4. 前端页面追踪
+### 3. GitHub Project Showcase
+
+```
+GitHub API → projects table → /projects page
+
+Features:
+├── Auto-fetch GitHub repository info
+├── Display language, stars, forks, last updated
+├── Upsert sync (ON CONFLICT DO UPDATE)
+└── Featured project pinning
+```
+
+### 4. Frontend Page Tracking
 
 ```javascript
-// script.js — 每次页面加载自动发送
+// script.js — fires automatically on every page load
 fetch('/api/pageview', {
   method: 'POST',
   body: JSON.stringify({ page, referrer, screen_width, duration_sec })
 });
 ```
 
-### Redis 缓存策略
+### Redis Cache Strategy
 
-不是所有 API 都缓存——只缓存 **读多写少** 的接口：
+Not all APIs are cached — only **read-heavy, write-light** endpoints:
 
-| 接口 | 缓存 | TTL | 原因 |
+| Endpoint | Cached | TTL | Reason |
 |---|---|---|---|
-| 文章列表 | ✓ | 120s | 频繁访问，数据变化慢 |
-| 文章详情 | ✓ | 300s | 内容不常变 |
-| 标签列表 | ✓ | 300s | 几乎不变 |
-| 项目列表 | ✓ | 300s | 每 6 小时才变 |
-| Admin 统计 | ✓ | 60s | 需要接近实时 |
-| 留存分析 | ✓ | 300s | 重型查询，结果变化慢 |
-| 访客注册 | ✗ | — | 写操作 |
-| 页面追踪 | ✗ | — | 写操作 |
+| Post list | ✓ | 120s | Frequently accessed, data changes slowly |
+| Post detail | ✓ | 300s | Content rarely changes |
+| Tag list | ✓ | 300s | Almost never changes |
+| Project list | ✓ | 300s | Updates every 6 hours |
+| Admin stats | ✓ | 60s | Needs near real-time |
+| Retention analysis | ✓ | 300s | Heavy query, results change slowly |
+| Visitor registration | ✗ | — | Write operation |
+| Page tracking | ✗ | — | Write operation |
 
-**缓存失效**：新消息来 → 清除 `stats:*`；项目同步 → 清除 `projects:*`。
+**Cache invalidation**: New message → clear `stats:*`; Project sync → clear `projects:*`.
 
-### 数据库设计
+### Database Design
 
-一次性创建了 9 张表 + 6 个索引：
+Created 9 tables + 6 indexes in one go:
 
 ```
 visitors ──→ click_logs, messages, page_views, visitor_sessions
 posts ──→ post_tags ←── tags
-projects（独立表）
+projects (standalone table)
 ```
 
-所有建表语句用 `CREATE TABLE IF NOT EXISTS`，种子数据用 `ON CONFLICT DO NOTHING`，
-保证重复启动不会出问题。
+All CREATE TABLE statements use `IF NOT EXISTS`, seed data uses `ON CONFLICT DO NOTHING` — safe to restart repeatedly.
 
-**技能点**：复杂 SQL（CTE、Window Functions、聚合）、数据库 Schema 设计、
-多对多关系、Redis 缓存策略、Chart.js 数据可视化、Markdown 渲染、RESTful API 设计
+**Skills**: Complex SQL (CTEs, Window Functions, aggregation), database schema design, many-to-many relationships, Redis cache strategy, Chart.js data visualization, Markdown rendering, RESTful API design
 
 ---
 
-## 第七章：细节打磨 — 一致性与品牌统一
+## Chapter 7: Polish — Consistency & Brand Unification
 
-功能做完后，发现了两个 UI 问题：
+After features were complete, two UI issues were discovered:
 
-### 问题 1：导航栏不一致
+### Issue 1: Inconsistent Navigation Bar
 
-| 页面 | 导航链接 |
+| Page | Nav Links |
 |---|---|
 | index.html | Home, About, Skills, Contact, Blog, Projects ✓ |
 | blog.html | Home, Blog, Projects ✗ |
@@ -332,284 +325,278 @@ projects（独立表）
 | post.html | Home, Blog, Projects ✗ |
 | admin.html | Home, Blog, Projects ✗ |
 
-Blog/Projects 等页面只有 3 个导航链接，而首页有 6 个。
+Blog/Projects pages only had 3 nav links while the homepage had 6.
 
-### 问题 2：名字不统一
+### Issue 2: Inconsistent Name
 
-页面上有的地方写 "Jing Wang"，有的写 "JW"，需要统一为 "AimeeWang"。
+Some pages showed "Jing Wang", others "JW" — needed to unify to "AimeeWang".
 
-### 解决
+### Solution
 
-一次性修改 5 个 HTML 文件，统一所有导航栏和名称。
+Modified all 5 HTML files at once to unify navigation and naming.
 
-**这种看似小的一致性问题，反映的是产品意识** — 用户不会只看一个页面。
+**This seemingly minor consistency issue reflects product awareness** — users don't just look at one page.
 
-**技能点**：前端一致性、品牌意识、批量文件修改
+**Skills**: Frontend consistency, brand awareness, batch file editing
 
 ---
 
-## 第八章：503 — 网站挂了
+## Chapter 8: 503 — The Site Went Down
 
-### 问题
+### Problem
 
-导航栏改完 push 后，打开网站发现：
+After pushing the nav bar fix, the website showed:
 
 ```
 :( Application Error
 If you are the application administrator, you can access the diagnostic resources.
 ```
 
-HTTP 503 — 网站完全挂了。
+HTTP 503 — the site was completely down.
 
-### 排查
+### Investigation
 
-1. 首先测试各个 URL：
-   - `/` → 200 ✓（verify.html，这是静态文件）
+1. Testing individual URLs:
+   - `/` → 200 ✓ (verify.html — static file)
    - `/blog` → 503 ✗
    - `/projects` → 503 ✗
-   - `/api/posts` → 200 ✓（Flask API 正常）
-   - `/blog.html` → 200 ✓（静态文件正常）
+   - `/api/posts` → 200 ✓ (Flask API working)
+   - `/blog.html` → 200 ✓ (static file working)
 
-2. 发现规律：
-   - 静态文件服务 → 正常
-   - Flask API 路由 → 正常
-   - Flask 返回静态文件的路由（`/blog`, `/projects`） → 503
+2. Pattern identified:
+   - Static file serving → working
+   - Flask API routes → working
+   - Flask routes that return static files (`/blog`, `/projects`) → 503
 
-3. 继续测试发现：等了一会，所有路由都恢复了。
+3. After waiting a few minutes, all routes recovered.
 
-### 根因
+### Root Cause
 
-**不是代码问题。** 503 是 Azure App Service 在部署过程中的临时状态。
-因为我们短时间内连续 push 了多次（功能代码、导航修复、auto-sync），
-App Service 在频繁重启中出现了短暂的服务不可用。
+**Not a code issue.** 503 was a temporary state during Azure App Service deployment. We had pushed multiple times in quick succession (feature code, nav fix, auto-sync), causing frequent App Service restarts.
 
-### 教训
+### Lesson Learned
 
-> **503 不一定是代码 bug。** 部署期间网站会短暂不可用，这是正常的。
-> 多次快速 push 会导致多次重部署，加剧这个问题。
-> **最佳实践：把多个改动合并到一个 commit 再 push。**
+> **503 doesn't always mean a code bug.** The site may be briefly unavailable during deployment — this is normal.
+> Multiple rapid pushes cause multiple redeployments, making it worse.
+> **Best practice: batch changes into a single commit before pushing.**
 
-**技能点**：生产环境排查、HTTP 状态码分析、部署过程理解、冷静分析而不是盲目改代码
+**Skills**: Production debugging, HTTP status code analysis, deployment process understanding, calm analysis instead of blindly changing code
 
 ---
 
-## 第九章：自动化 — 让 GitHub 项目自己同步
+## Chapter 9: Automation — Self-Syncing GitHub Projects
 
-### 问题
+### Problem
 
-GitHub 上新建仓库后，网站的 Projects 页面不会自动更新。
-之前的同步只在首次启动（projects 表为空时）触发一次。
+After creating new repositories on GitHub, the Projects page on the website didn't automatically update. The sync only triggered once on first startup (when the projects table was empty).
 
-### 方案选择
+### Approach Comparison
 
-| 方案 | 优点 | 缺点 |
+| Approach | Pros | Cons |
 |---|---|---|
-| A：定时后台同步 | 简单、无需外部配置 | 有延迟（最多 6 小时） |
-| B：GitHub Webhook | 实时、精准 | 需要配置 Webhook URL、处理签名验证 |
+| A: Scheduled background sync | Simple, no external config needed | Has delay (up to 6 hours) |
+| B: GitHub Webhook | Real-time, precise | Requires Webhook URL config, signature verification |
 
-选择了 **方案 A**：用 Python `threading` 创建守护线程，每 6 小时自动拉取 GitHub API。
+Chose **Approach A**: Use Python `threading` to create a daemon thread that pulls GitHub API every 6 hours.
 
 ```python
 def _github_sync_loop():
     while True:
-        time.sleep(GITHUB_SYNC_INTERVAL)  # 默认 21600 秒 = 6 小时
-        _seed_github_projects()            # 复用已有的同步函数
-        cache_delete("projects:*")         # 清除缓存
+        time.sleep(GITHUB_SYNC_INTERVAL)  # Default 21600 seconds = 6 hours
+        _seed_github_projects()            # Reuse existing sync function
+        cache_delete("projects:*")         # Clear cache
 
 _sync_thread = threading.Thread(target=_github_sync_loop, daemon=True)
 _sync_thread.start()
 ```
 
-`daemon=True` 确保主进程退出时线程自动结束，不会阻止 App Service 重启。
-同步间隔可通过环境变量 `GITHUB_SYNC_INTERVAL` 调整。
+`daemon=True` ensures the thread stops automatically when the main process exits, preventing it from blocking App Service restarts. The sync interval is configurable via the `GITHUB_SYNC_INTERVAL` environment variable.
 
-**技能点**：多线程编程、后台任务调度、守护线程、API 集成、可配置化设计
+**Skills**: Multi-threaded programming, background task scheduling, daemon threads, API integration, configurable design
 
 ---
 
-## 第十章：409 部署冲突 — 流水线撞车
+## Chapter 10: 409 Deployment Conflict — Pipeline Collision
 
-### 问题
+### Problem
 
-push 后 GitHub Actions 显示红色：
+After pushing, GitHub Actions showed red:
 
 ```
 Error: Failed to deploy web package using OneDeploy to App Service.
 Conflict (CODE: 409)
 ```
 
-### 分析
+### Analysis
 
-409 Conflict = Azure App Service 上有一个部署正在进行，不接受新的部署请求。
+409 Conflict = Azure App Service has a deployment in progress and won't accept new deployment requests.
 
-原因：之前连续 push 了 REDIS.md、POSTGRESQL.md、auto-sync 代码，
-每次 push 都触发一次部署，部署还没完成就来了新的——**撞车了**。
+Cause: We had pushed REDIS.md, POSTGRESQL.md, and auto-sync code in rapid succession. Each push triggered a deployment, and new deployments arrived before previous ones finished — **a collision.**
 
 ```
-部署 #9 (REDIS.md)        ──→ 成功 ✓
-部署 #10 (POSTGRESQL.md)   ──→ 成功 ✓（前一个刚完成）
-部署 #11 (auto-sync 代码)  ──→ 409 ✗（#10 的 Azure 构建还在跑）
-部署 #12 (重试)            ──→ 成功 ✓（#10 终于完成了）
-部署 #13 (重试)            ──→ 409 ✗（仍有残留锁）
-部署 #14 (重启后重试)      ──→ 成功 ✓
+Deploy #9  (REDIS.md)       ──→ Success ✓
+Deploy #10 (POSTGRESQL.md)  ──→ Success ✓ (previous just finished)
+Deploy #11 (auto-sync code) ──→ 409 ✗ (#10's Azure build still running)
+Deploy #12 (retry)          ──→ Success ✓ (#10 finally completed)
+Deploy #13 (retry)          ──→ 409 ✗ (residual lock)
+Deploy #14 (after restart)  ──→ Success ✓
 ```
 
-### 解决
+### Solution
 
 ```bash
-# 1. 重启 App Service，清除部署锁
+# 1. Restart App Service to clear the deployment lock
 az webapp restart --name aimeelan --resource-group aimee-test-env
 
-# 2. 等待重启完成
+# 2. Wait for restart to complete
 Start-Sleep -Seconds 10
 
-# 3. 空 commit 重新触发部署
+# 3. Empty commit to re-trigger deployment
 git commit --allow-empty -m "Retry deploy after restart"
 git push origin main
 ```
 
-### 教训
+### Lesson Learned
 
-> **CI/CD 流水线也会有"交通事故"。** 和写代码一样，部署也需要考虑并发。
-> 频繁 push 小改动会触发很多次部署，不如攒一批一起推。
+> **CI/CD pipelines can have "traffic accidents" too.** Just like code, deployments need to account for concurrency.
+> Frequent small pushes trigger many deployments — batching is better.
 
-**技能点**：CI/CD 故障排查、Azure CLI 操作、部署流水线理解、409 状态码含义
+**Skills**: CI/CD troubleshooting, Azure CLI operations, deployment pipeline understanding, 409 status code
 
 ---
 
-## 第十一章：文档即产品
+## Chapter 11: Documentation as Product
 
-代码写完不算完。一个好的项目需要好的文档。
+Code alone isn't enough. A good project needs good documentation.
 
-为什么写文档？
-1. **给自己** — 三个月后自己看还能懂
-2. **给别人** — 其他人能快速理解项目
-3. **展示能力** — 证明你不只是会写代码，还会系统性思考
+Why write documentation?
+1. **For yourself** — You'll still understand it three months later
+2. **For others** — Anyone can quickly understand the project
+3. **To showcase ability** — Proves you can think systematically, not just write code
 
-最终项目包含 7 份文档：
+The final project includes 7 documents:
 
-| 文档 | 内容 | 目标读者 |
+| Document | Content | Target Audience |
 |---|---|---|
-| README.md | 项目总览、快速开始 | 所有人 |
-| ARCHITECTURE.md | 系统架构、组件关系 | 技术人员 |
-| POSTGRESQL.md | 数据库 Schema、SQL 详解、监控 | 后端开发 |
-| REDIS.md | 缓存策略、监控、测试方法 | 后端开发 |
-| DEPLOYMENT.md | CI/CD 流水线全流程 | DevOps |
-| TROUBLESHOOTING.md | 故障排查指南 | 运维 |
-| STORY.md | 你正在读的这篇 | 所有人 |
+| README.md | Project overview, quick start | Everyone |
+| ARCHITECTURE.md | System architecture, component relationships | Engineers |
+| POSTGRESQL.md | Database schema, SQL deep dive, monitoring | Backend developers |
+| REDIS.md | Cache strategy, monitoring, testing methods | Backend developers |
+| DEPLOYMENT.md | CI/CD pipeline end-to-end | DevOps |
+| TROUBLESHOOTING.md | Issue resolution guide | Operations |
+| STORY.md | The document you're reading now | Everyone |
 
-**技能点**：技术写作、系统性思维、文档结构设计
-
----
-
-## 技术栈总览
-
-```
-前端：HTML5 / CSS3 / JavaScript / Chart.js / marked.js / highlight.js
-后端：Python / Flask / gunicorn
-数据库：Azure PostgreSQL Flexible Server / psycopg2
-缓存：Azure Cache for Redis
-云平台：Azure App Service (Linux)
-CI/CD：GitHub Actions / Azure OneDeploy
-版本控制：Git / GitHub
-安全：SSL/TLS / 邮箱验证 / IP 哈希 / bcrypt 密码哈希 / 一次性邮箱封锁
-监控：Azure Metrics / Redis MONITOR / PostgreSQL pg_stat
-```
+**Skills**: Technical writing, systematic thinking, documentation structure design
 
 ---
 
-## 最终项目结构
+## Tech Stack Overview
+
+```
+Frontend:  HTML5 / CSS3 / JavaScript / Chart.js / marked.js / highlight.js
+Backend:   Python / Flask / gunicorn
+Database:  Azure PostgreSQL Flexible Server / psycopg2
+Cache:     Azure Cache for Redis
+Cloud:     Azure App Service (Linux)
+CI/CD:     GitHub Actions / Azure OneDeploy
+VCS:       Git / GitHub
+Security:  SSL/TLS / email validation / IP hashing / bcrypt password hashing / disposable email blocking
+Monitoring: Azure Metrics / Redis MONITOR / PostgreSQL pg_stat
+```
+
+---
+
+## Final Project Structure
 
 ```
 my-website/
 ├── .github/
 │   └── workflows/
-│       └── main_aimeelan.yml     ← CI/CD 流水线配置
+│       └── main_aimeelan.yml     ← CI/CD pipeline config
 ├── static/
-│   ├── index.html                ← 主页（自我介绍、技能、联系方式）
-│   ├── verify.html               ← 访客验证入口
-│   ├── blog.html                 ← 博客列表页
-│   ├── post.html                 ← 博客文章详情页
-│   ├── projects.html             ← GitHub 项目展示页
-│   ├── admin.html                ← Admin 数据分析面板
-│   ├── style.css                 ← 全局样式
-│   └── script.js                 ← 页面追踪 + 交互逻辑
-├── app.py                        ← Flask 后端（所有 API + 数据库）
-├── requirements.txt              ← Python 依赖
-├── README.md                     ← 项目说明
-├── ARCHITECTURE.md               ← 系统架构
-├── POSTGRESQL.md                 ← 数据库文档
-├── REDIS.md                      ← 缓存文档
-├── DEPLOYMENT.md                 ← 部署文档
-├── TROUBLESHOOTING.md            ← 故障排查
-└── STORY.md                      ← 项目故事（本文）
+│   ├── index.html                ← Homepage (intro, skills, contact)
+│   ├── verify.html               ← Visitor verification gate
+│   ├── blog.html                 ← Blog listing page
+│   ├── post.html                 ← Blog post detail page
+│   ├── projects.html             ← GitHub project showcase page
+│   ├── admin.html                ← Admin analytics dashboard
+│   ├── style.css                 ← Global styles
+│   └── script.js                 ← Page tracking + interactions
+├── app.py                        ← Flask backend (all APIs + DB)
+├── requirements.txt              ← Python dependencies
+├── README.md                     ← Project overview
+├── ARCHITECTURE.md               ← System architecture
+├── POSTGRESQL.md                 ← Database documentation
+├── REDIS.md                      ← Cache documentation
+├── DEPLOYMENT.md                 ← Deployment documentation
+├── TROUBLESHOOTING.md            ← Troubleshooting guide
+└── STORY.md                      ← Project story (this document)
 ```
 
 ---
 
-## 技能展示总结
+## Skills Demonstrated
 
-### 后端开发
-- Python Flask 框架，RESTful API 设计
-- PostgreSQL 复杂查询（CTE、Window Functions、聚合分析、Upsert）
-- Redis 缓存策略设计（Read-Through、TTL、主动失效）
-- 多线程后台任务调度
-- SMTP 邮件通知集成
+### Backend Development
+- Python Flask framework, RESTful API design
+- PostgreSQL complex queries (CTEs, Window Functions, aggregation, Upsert)
+- Redis cache strategy design (Read-Through, TTL, active invalidation)
+- Multi-threaded background task scheduling
+- SMTP email notification integration
 
-### 前端开发
-- 响应式 HTML/CSS 布局
-- JavaScript 异步编程（fetch API）
-- Chart.js 数据可视化
-- Markdown 实时渲染
+### Frontend Development
+- Responsive HTML/CSS layouts
+- JavaScript async programming (fetch API)
+- Chart.js data visualization
+- Real-time Markdown rendering
 
-### 云计算与 DevOps
-- Azure App Service / PostgreSQL / Redis 部署与配置
-- GitHub Actions CI/CD 自动化流水线
-- 连接字符串格式转换（ADO.NET → libpq / Redis URI）
-- Azure Metrics 监控与告警
+### Cloud Computing & DevOps
+- Azure App Service / PostgreSQL / Redis deployment & configuration
+- GitHub Actions CI/CD automated pipeline
+- Connection string format conversion (ADO.NET → libpq / Redis URI)
+- Azure Metrics monitoring & alerting
 
-### 安全工程
-- SSL/TLS 加密通信
-- bcrypt 密码哈希
-- IP 隐私保护（SHA-256 哈希存储）
-- 一次性邮箱域名封锁
-- SQL 注入防护（参数化查询 + 白名单）
-- Session 管理与 Admin 认证
+### Security Engineering
+- SSL/TLS encrypted communication
+- bcrypt password hashing
+- IP privacy protection (SHA-256 hashed storage)
+- Disposable email domain blocking
+- SQL injection prevention (parameterized queries + allowlisting)
+- Session management & admin authentication
 
-### 问题解决
-- 504 超时排查 → 连接字符串格式不匹配
-- 503 应用错误 → 部署过程中的临时状态
-- 409 部署冲突 → App Service 部署锁
-- Git 合并冲突 → `--allow-unrelated-histories`
-- UI 不一致 → 系统性批量修复
+### Problem Solving
+- 504 timeout → connection string format mismatch
+- 503 application error → transient deployment state
+- 409 deployment conflict → App Service deployment lock
+- Git merge conflict → `--allow-unrelated-histories`
+- UI inconsistency → systematic batch fix
 
-### 系统设计
-- 9 张表的关系型数据库 Schema
-- 6 个索引的性能优化
-- 读写分离的缓存策略
-- 容错降级设计（Redis 挂了不影响核心功能）
-- 可配置化（所有敏感配置通过环境变量注入）
+### System Design
+- 9-table relational database schema
+- 6 indexes for performance optimization
+- Read/write separated cache strategy
+- Graceful degradation (Redis failure doesn't affect core functionality)
+- Configurable design (all sensitive configs injected via environment variables)
 
-### 技术写作
-- 7 份系统性文档
-- 流程图、表格、代码示例
-- 面向不同读者的分层文档
+### Technical Writing
+- 7 systematic documents
+- Diagrams, tables, code examples
+- Layered documentation for different audiences
 
 ---
 
-## 写在最后
+## Final Thoughts
 
-这个项目从第一行 HTML 到最终版本，经历了：
+This project, from the first line of HTML to its final version, went through:
 
-- **16 次 Git 提交**
-- **9 张数据库表**
-- **1200+ 行 Python 后端代码**
-- **7 个 HTML 页面**
-- **7 份技术文档**
-- **4 次部署失败与修复**
-- **无数次"为什么不工作"到"原来如此"的顿悟**
+- **16 Git commits**
+- **9 database tables**
+- **1,200+ lines of Python backend code**
+- **7 HTML pages**
+- **7 technical documents**
+- **4 deployment failures and fixes**
+- **Countless moments of "why isn't this working?" followed by "so that's why!"**
 
-每一个问题都是真实遇到的，每一个解决方案都是当时想出来的。
-没有完美的代码，只有不断改进的过程。
+Every problem was encountered in real time, and every solution was figured out on the spot. There's no perfect code — only a continuous process of improvement.
 
-> **项目最有价值的不是最终结果，而是解决问题的每一步。**
+> **The most valuable part of a project isn't the final result — it's every step taken to solve the problems along the way.**

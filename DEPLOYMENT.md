@@ -1,166 +1,166 @@
-# CI/CD 部署流水线 — 从代码到上线全流程
+# CI/CD Deployment Pipeline — From Code to Production
 
-本项目使用 **GitHub Actions** 实现自动化 CI/CD 部署。
-每次 `git push` 到 `main` 分支，代码会自动构建并部署到 Azure App Service。
+This project uses **GitHub Actions** for automated CI/CD deployment.
+Every `git push` to the `main` branch automatically builds and deploys the code to Azure App Service.
 
 ---
 
-## 目录
+## Table of Contents
 
-- [架构总览](#架构总览)
-- [三大组件及其角色](#三大组件及其角色)
-- [完整部署流程](#完整部署流程)
-  - [Step 1：本地 → GitHub](#step-1本地--github)
-  - [Step 2：GitHub Actions 自动触发](#step-2github-actions-自动触发)
-  - [Step 3：Build 阶段](#step-3build-阶段)
-  - [Step 4：Deploy 阶段](#step-4deploy-阶段)
-  - [Step 5：Azure App Service 接管](#step-5azure-app-service-接管)
-- [Workflow 配置文件详解](#workflow-配置文件详解)
-- [Azure App Service 运行机制](#azure-app-service-运行机制)
-  - [Oryx 构建引擎](#oryx-构建引擎)
-  - [gunicorn 启动](#gunicorn-启动)
-  - [环境变量](#环境变量)
-- [部署状态查看](#部署状态查看)
-  - [GitHub Actions 页面](#github-actions-页面)
-  - [Azure 门户](#azure-门户)
-- [常见部署问题及解决方案](#常见部署问题及解决方案)
-- [手动部署方法](#手动部署方法)
+- [Architecture Overview](#architecture-overview)
+- [Three Components & Their Roles](#three-components--their-roles)
+- [Complete Deployment Flow](#complete-deployment-flow)
+  - [Step 1: Local → GitHub](#step-1-local--github)
+  - [Step 2: GitHub Actions Auto-Trigger](#step-2-github-actions-auto-trigger)
+  - [Step 3: Build Stage](#step-3-build-stage)
+  - [Step 4: Deploy Stage](#step-4-deploy-stage)
+  - [Step 5: Azure App Service Takes Over](#step-5-azure-app-service-takes-over)
+- [Workflow Configuration Explained](#workflow-configuration-explained)
+- [Azure App Service Runtime](#azure-app-service-runtime)
+  - [Oryx Build Engine](#oryx-build-engine)
+  - [gunicorn Startup](#gunicorn-startup)
+  - [Environment Variables](#environment-variables)
+- [Monitoring Deployment Status](#monitoring-deployment-status)
+  - [GitHub Actions Page](#github-actions-page)
+  - [Azure Portal](#azure-portal)
+- [Common Deployment Issues & Solutions](#common-deployment-issues--solutions)
+- [Manual Deployment Methods](#manual-deployment-methods)
 - [FAQ](#faq)
 
 ---
 
-## 架构总览
+## Architecture Overview
 
 ```
 ┌─────────────┐      git push      ┌─────────────┐     OneDeploy     ┌──────────────────┐
 │             │ ──────────────────> │             │ ─────────────────> │                  │
-│  本地电脑    │                     │   GitHub    │                    │  Azure App       │
-│  (VS Code)  │                     │   (代码仓库) │                    │  Service         │
-│             │ <── git pull ────── │             │                    │  (运行网站)       │
+│  Local PC   │                     │   GitHub    │                    │  Azure App       │
+│  (VS Code)  │                     │  (Code Repo)│                    │  Service         │
+│             │ <── git pull ────── │             │                    │  (Runs website)  │
 └─────────────┘                     └─────────────┘                    └──────────────────┘
       │                                   │                                    │
-  编写代码                          GitHub Actions                        Flask + gunicorn
-  git add/commit                   自动 build + deploy                  处理用户请求 
+  Write code                        GitHub Actions                      Flask + gunicorn
+  git add/commit                   auto build + deploy                 handles user requests
                                                                        
                                                                   https://aimeelan.azurewebsites.net
 ```
 
-## 三大组件及其角色
+## Three Components & Their Roles
 
-| 组件 | 位置 | 作用 | 类比 |
+| Component | Location | Purpose | Analogy |
 |---|---|---|---|
-| **本地电脑 (VS Code)** | 你的电脑 | 编写和测试代码 | 厨师的厨房 |
-| **GitHub** | github.com/hahAI111/aimeewebpage | 存储代码 + 自动化部署中转 | 快递公司（接货+送货） |
-| **Azure App Service** | aimeelan.azurewebsites.net | 运行网站，对外提供服务 | 餐厅（客人来这里访问） |
+| **Local PC (VS Code)** | Your computer | Write and test code | Chef's kitchen |
+| **GitHub** | github.com/hahAI111/aimeewebpage | Store code + CI/CD relay | Delivery company (pick up + deliver) |
+| **Azure App Service** | aimeelan.azurewebsites.net | Run the website, serve users | Restaurant (where customers visit) |
 
-**核心逻辑**：你只需要 `git push`，后面的一切都是自动的。
+**Core logic**: You only need `git push` — everything after that is automated.
 
 ---
 
-## 完整部署流程
+## Complete Deployment Flow
 
-### Step 1：本地 → GitHub
+### Step 1: Local → GitHub
 
 ```bash
-# 修改代码后
-git add -A                    # 暂存所有改动
-git commit -m "描述这次改了什么"  # 提交到本地仓库
-git push origin main          # 推送到 GitHub 的 main 分支
+# After modifying code
+git add -A                        # Stage all changes
+git commit -m "describe changes"  # Commit to local repository
+git push origin main              # Push to GitHub's main branch
 ```
 
-这一步做的事情：
-- 把你电脑上的代码变更上传到 GitHub 仓库
-- GitHub 收到 push 后，检查是否有配置好的 Actions workflow
+What this step does:
+- Uploads your local code changes to the GitHub repository
+- GitHub checks whether there's a configured Actions workflow
 
-### Step 2：GitHub Actions 自动触发
+### Step 2: GitHub Actions Auto-Trigger
 
-GitHub 检测到 `main` 分支有新的 push，自动执行 `.github/workflows/main_aimeelan.yml`。
+GitHub detects a new push to the `main` branch and automatically executes `.github/workflows/main_aimeelan.yml`.
 
-触发条件（定义在 workflow 文件中）：
+Trigger conditions (defined in the workflow file):
 ```yaml
 on:
   push:
     branches:
-      - main          # main 分支有 push 时自动触发
-  workflow_dispatch:   # 也可以在 GitHub 页面手动触发
+      - main          # Auto-trigger on push to main branch
+  workflow_dispatch:   # Also supports manual trigger from GitHub page
 ```
 
-### Step 3：Build 阶段
+### Step 3: Build Stage
 
-在 GitHub 提供的 **ubuntu-latest** 虚拟机上执行：
-
-```
-1. actions/checkout@v4        → 拉取你的最新代码
-2. actions/setup-python@v5    → 安装 Python 3.14
-3. pip install -r requirements.txt → 安装依赖（验证能否正常安装）
-4. actions/upload-artifact@v4  → 把代码打包成 artifact（排除虚拟环境）
-```
-
-**目的**：提前验证代码能否正常安装依赖，有问题在这一步就会失败，不会影响线上。
-
-### Step 4：Deploy 阶段
+Runs on a GitHub-provided **ubuntu-latest** virtual machine:
 
 ```
-1. actions/download-artifact@v4  → 下载 build 阶段的打包文件
-2. azure/login@v2               → 用密钥登录 Azure（Service Principal）
-3. azure/webapps-deploy@v3       → 把代码包通过 OneDeploy API 上传到 Azure
+1. actions/checkout@v4        → Pull latest code
+2. actions/setup-python@v5    → Install Python 3.14
+3. pip install -r requirements.txt → Install dependencies (verify they install correctly)
+4. actions/upload-artifact@v4  → Package code as artifact (excluding virtual environment)
 ```
 
-**认证方式**：使用 OIDC（OpenID Connect）联合凭证，GitHub 和 Azure 之间建立了信任关系。
-密钥存储在 GitHub 仓库的 Secrets 中：
+**Purpose**: Pre-validate that code can install dependencies correctly. If there's an issue, it fails here without affecting production.
+
+### Step 4: Deploy Stage
+
+```
+1. actions/download-artifact@v4  → Download the packaged artifact from build stage
+2. azure/login@v2               → Log in to Azure using credentials (Service Principal)
+3. azure/webapps-deploy@v3       → Upload code package to Azure via OneDeploy API
+```
+
+**Authentication**: Uses OIDC (OpenID Connect) federated credentials — a trust relationship between GitHub and Azure.
+Secrets are stored in the GitHub repository's Secrets:
 - `AZUREAPPSERVICE_CLIENTID_xxx`
 - `AZUREAPPSERVICE_TENANTID_xxx`
 - `AZUREAPPSERVICE_SUBSCRIPTIONID_xxx`
 
-### Step 5：Azure App Service 接管
+### Step 5: Azure App Service Takes Over
 
-Azure 收到代码包后：
+After Azure receives the code package:
 
 ```
-1. Oryx 构建引擎检测到 requirements.txt → 识别为 Python 项目
-2. 创建虚拟环境，pip install -r requirements.txt
-3. 执行启动命令：gunicorn --bind=0.0.0.0:8000 --timeout 600 app:app
-4. Flask 应用启动，init_db() 运行
-5. 网站开始对外服务
+1. Oryx build engine detects requirements.txt → identifies as Python project
+2. Creates virtual environment, pip install -r requirements.txt
+3. Executes startup command: gunicorn --bind=0.0.0.0:8000 --timeout 600 app:app
+4. Flask application starts, init_db() runs
+5. Website begins serving traffic
 ```
 
-**整个流程耗时**：通常 2-4 分钟（build ~16s + deploy ~1-2min + 启动 ~30s）
+**Total time**: Typically 2–4 minutes (build ~16s + deploy ~1–2min + startup ~30s)
 
 ---
 
-## Workflow 配置文件详解
+## Workflow Configuration Explained
 
-文件路径：`.github/workflows/main_aimeelan.yml`
+File path: `.github/workflows/main_aimeelan.yml`
 
 ```yaml
 name: Build and deploy Python app to Azure Web App - aimeelan
 
-# ── 触发条件 ──
+# ── Trigger conditions ──
 on:
   push:
-    branches: [ main ]         # push 到 main 时自动触发
-  workflow_dispatch:            # 支持手动触发
+    branches: [ main ]         # Auto-trigger on push to main
+  workflow_dispatch:            # Supports manual trigger
 
 jobs:
-  # ── 构建阶段 ──
+  # ── Build stage ──
   build:
-    runs-on: ubuntu-latest      # 在 GitHub 提供的 Ubuntu 虚拟机上运行
+    runs-on: ubuntu-latest      # Runs on GitHub-provided Ubuntu VM
     permissions:
-      contents: read            # 需要读取仓库代码
+      contents: read            # Needs read access to repo code
 
     steps:
-      - uses: actions/checkout@v4           # 拉取代码
+      - uses: actions/checkout@v4           # Pull code
 
       - name: Set up Python version
         uses: actions/setup-python@v5
         with:
-          python-version: '3.14'            # 与 Azure App Service 上的版本一致
+          python-version: '3.14'            # Matches Azure App Service version
 
       - name: Create and Start virtual environment and Install dependencies
         run: |
-          python -m venv antenv             # 创建虚拟环境
-          source antenv/bin/activate        # 激活
-          pip install -r requirements.txt   # 安装依赖（预检）
+          python -m venv antenv             # Create virtual environment
+          source antenv/bin/activate        # Activate
+          pip install -r requirements.txt   # Install dependencies (pre-check)
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
@@ -168,14 +168,14 @@ jobs:
           name: python-app
           path: |
             .
-            !antenv/                        # 排除虚拟环境（Azure 会自己安装）
+            !antenv/                        # Exclude venv (Azure installs its own)
 
-  # ── 部署阶段 ──
+  # ── Deploy stage ──
   deploy:
     runs-on: ubuntu-latest
-    needs: build                 # 依赖 build 成功后才执行
+    needs: build                 # Depends on successful build
     permissions:
-      id-token: write            # OIDC 认证需要
+      id-token: write            # Required for OIDC authentication
       contents: read
 
     steps:
@@ -192,22 +192,22 @@ jobs:
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'aimeelan'              # App Service 名称
-          slot-name: 'Production'           # 部署槽（生产）
+          app-name: 'aimeelan'              # App Service name
+          slot-name: 'Production'           # Deployment slot
 ```
 
 ---
 
-## Azure App Service 运行机制
+## Azure App Service Runtime
 
-### Oryx 构建引擎
+### Oryx Build Engine
 
-Azure 收到代码后，**Oryx** 负责构建：
+After Azure receives the code, **Oryx** handles the build:
 
 ```
-检测 requirements.txt ─→ 识别为 Python 项目
+Detects requirements.txt ─→ Identifies as Python project
             │
-            ├── 创建 /antenv 虚拟环境
+            ├── Creates /antenv virtual environment
             ├── pip install -r requirements.txt
             │     ├── flask
             │     ├── gunicorn
@@ -215,180 +215,177 @@ Azure 收到代码后，**Oryx** 负责构建：
             │     ├── redis
             │     ├── requests
             │     └── bcrypt
-            └── 构建完成
+            └── Build complete
 ```
 
-这个过程由环境变量 `SCM_DO_BUILD_DURING_DEPLOYMENT=true` 控制。
+This process is controlled by the `SCM_DO_BUILD_DURING_DEPLOYMENT=true` environment variable.
 
-### gunicorn 启动
+### gunicorn Startup
 
-Azure App Service → **配置 → 常规设置 → 启动命令**：
+Azure App Service → **Configuration → General settings → Startup Command**:
 
 ```bash
 gunicorn --bind=0.0.0.0:8000 --timeout 600 app:app
 ```
 
-| 参数 | 含义 |
+| Parameter | Meaning |
 |---|---|
-| `--bind=0.0.0.0:8000` | 监听所有网络接口的 8000 端口 |
-| `--timeout 600` | 请求超时 600 秒（给长查询留余地） |
-| `app:app` | 从 `app.py` 文件导入 `app` 对象（Flask 实例） |
+| `--bind=0.0.0.0:8000` | Listen on all interfaces, port 8000 |
+| `--timeout 600` | Request timeout 600 seconds (gives heavy queries room) |
+| `app:app` | Import `app` object from `app.py` (Flask instance) |
 
-gunicorn 是生产级 WSGI 服务器，替代 Flask 自带的开发服务器。
+gunicorn is a production-grade WSGI server, replacing Flask's built-in development server.
 
-### 环境变量
+### Environment Variables
 
-在 Azure Portal → `aimeelan` → **配置 → 应用程序设置** 中配置：
+Configured in Azure Portal → `aimeelan` → **Configuration → Application settings**:
 
-| 变量 | 用途 | 配置位置 |
+| Variable | Purpose | Where to Configure |
 |---|---|---|
-| `AZURE_POSTGRESQL_CONNECTIONSTRING` | PostgreSQL 连接字符串 | Service Connector 或手动 |
-| `AZURE_REDIS_CONNECTIONSTRING` | Redis 连接字符串 | Service Connector 或手动 |
-| `OWNER_EMAIL` | 接收通知的邮箱 | 手动 |
-| `SMTP_SERVER` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | 邮件发送配置 | 手动 |
-| `ADMIN_USER` / `ADMIN_PASS_HASH` | Admin 登录凭证 | 手动 |
-| `GITHUB_USERNAME` / `GITHUB_TOKEN` | GitHub API 同步用 | 手动 |
-| `GITHUB_SYNC_INTERVAL` | 自动同步间隔（秒，默认 21600） | 手动（可选） |
-| `SECRET_KEY` | Flask session 密钥 | 手动（可选） |
-| `SCM_DO_BUILD_DURING_DEPLOYMENT` | 让 Oryx 在部署时构建 | Azure 自动设置 |
+| `AZURE_POSTGRESQL_CONNECTIONSTRING` | PostgreSQL connection string | Service Connector or manual |
+| `AZURE_REDIS_CONNECTIONSTRING` | Redis connection string | Service Connector or manual |
+| `OWNER_EMAIL` | Email to receive notifications | Manual |
+| `SMTP_SERVER` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Email sending config | Manual |
+| `ADMIN_USER` / `ADMIN_PASS_HASH` | Admin login credentials | Manual |
+| `GITHUB_USERNAME` / `GITHUB_TOKEN` | For GitHub API sync | Manual |
+| `GITHUB_SYNC_INTERVAL` | Auto-sync interval in seconds (default 21600) | Manual (optional) |
+| `SECRET_KEY` | Flask session secret key | Manual (optional) |
+| `SCM_DO_BUILD_DURING_DEPLOYMENT` | Enables Oryx build during deployment | Azure auto-set |
 
-**这些变量不存在于代码中**，只在 Azure 运行环境中生效，保证密码安全。
-
----
-
-## 部署状态查看
-
-### GitHub Actions 页面
-
-**地址**：`https://github.com/hahAI111/aimeewebpage/actions`
-
-每次 push 会产生一个 workflow run，可以看到：
-- ✅ 绿色 = build/deploy 成功
-- ❌ 红色 = 失败（点击查看详细日志）
-- 🟡 黄色 = 正在进行
-
-### Azure 门户
-
-**Azure Portal → `aimeelan` → 部署中心**：
-- 可以看到所有部署历史
-- 每次部署的状态、时间、提交信息
-
-**Azure Portal → `aimeelan` → 日志流 (Log Stream)**：
-- 实时查看应用启动日志
-- 可以看到 `Redis connected successfully`、`GitHub projects seeded` 等输出
+**These variables do not exist in the codebase** — they only take effect in the Azure runtime environment, keeping passwords secure.
 
 ---
 
-## 常见部署问题及解决方案
+## Monitoring Deployment Status
 
-### 1. 409 Conflict（部署冲突）
+### GitHub Actions Page
 
-**原因**：上一次部署还在进行中，新的部署请求被拒绝。  
-**常见场景**：短时间内连续 push 多次。
+**URL**: `https://github.com/hahAI111/aimeewebpage/actions`
 
-**解决**：
+Each push creates a workflow run where you can see:
+- ✅ Green = build/deploy succeeded
+- ❌ Red = failed (click to view detailed logs)
+- 🟡 Yellow = in progress
+
+### Azure Portal
+
+**Azure Portal → `aimeelan` → Deployment Center**:
+- View all deployment history
+- Status, time, and commit info for each deployment
+
+**Azure Portal → `aimeelan` → Log Stream**:
+- View real-time application startup logs
+- See outputs like `Redis connected successfully`, `GitHub projects seeded`, etc.
+
+---
+
+## Common Deployment Issues & Solutions
+
+### 1. 409 Conflict (Deployment Conflict)
+
+**Cause**: A previous deployment is still in progress; the new deployment request is rejected.  
+**Common scenario**: Pushing multiple times in quick succession.
+
+**Solution**:
 ```bash
-# 重启 App Service 清除部署锁
+# Restart App Service to clear the deployment lock
 az webapp restart --name aimeelan --resource-group aimee-test-env
 
-# 等 10 秒后重新触发部署
+# Wait 10 seconds then re-trigger deployment
 git commit --allow-empty -m "Retry deploy"
 git push origin main
 ```
 
-**预防**：多次改动合并到一个 commit 再 push，避免连续触发多次部署。
+**Prevention**: Batch multiple changes into a single commit before pushing to avoid triggering multiple deployments.
 
-### 2. Build 失败（pip install 错误）
+### 2. Build Failure (pip install error)
 
-**原因**：requirements.txt 中的某个包无法安装。  
-**常见**：`bcrypt` 需要编译 C 扩展，某些环境可能缺少编译工具。
+**Cause**: A package in requirements.txt fails to install.  
+**Common**: `bcrypt` requires C extension compilation; some environments may lack build tools.
 
-**排查**：
-1. 点击 GitHub Actions 页面的红色 build 步骤
-2. 查看详细日志，找到 `pip install` 失败的具体包
-3. 修复 requirements.txt（换包或锁定版本）
+**Troubleshooting**:
+1. Click the red build step on the GitHub Actions page
+2. Review detailed logs to find the specific package that failed `pip install`
+3. Fix requirements.txt (switch package or pin version)
 
-### 3. Deploy 成功但网站 503
+### 3. Deploy Succeeds but Site Returns 503
 
-**原因**：代码部署成功但 Flask 启动失败。  
-**常见**：
-- import 错误（某个包没装上）
-- `init_db()` 连接数据库失败
-- 语法错误
+**Cause**: Code deployed successfully but Flask fails to start.  
+**Common**:
+- Import error (a package didn't install properly)
+- `init_db()` fails to connect to the database
+- Syntax error
 
-**排查**：
+**Troubleshooting**:
 ```bash
-# 查看 Azure 应用日志
+# View Azure application logs
 az webapp log tail --name aimeelan --resource-group aimee-test-env
 ```
 
-或 Azure Portal → `aimeelan` → **日志流**
+Or Azure Portal → `aimeelan` → **Log Stream**
 
-### 4. 部署成功但内容没更新
+### 4. Deploy Succeeds but Content Not Updated
 
-**原因**：浏览器缓存了旧的 HTML/CSS/JS。
+**Cause**: Browser cached old HTML/CSS/JS files.
 
-**解决**：
-- 浏览器硬刷新：`Ctrl + Shift + R`
-- 或清除浏览器缓存
+**Solution**:
+- Hard refresh: `Ctrl + Shift + R`
+- Or clear browser cache
 
-### 5. Git push 被拒绝
+### 5. Git Push Rejected
 
-**原因**：远程有你本地没有的提交。
+**Cause**: Remote has commits you don't have locally.
 
-**解决**：
+**Solution**:
 ```bash
-git pull origin main --rebase   # 拉取远程变更
-git push origin main             # 再推送
+git pull origin main --rebase   # Pull remote changes
+git push origin main             # Push again
 ```
 
 ---
 
-## 手动部署方法
+## Manual Deployment Methods
 
-如果 GitHub Actions 持续失败，可以绕过它直接从本地部署：
+If GitHub Actions keeps failing, you can bypass it and deploy directly from local:
 
-### 方法 1：Azure CLI 部署
+### Method 1: Azure CLI Deployment
 
 ```bash
-# 打包代码（排除不需要的文件）
+# Package code (exclude unnecessary files)
 cd C:\Users\jingwang1\my-website
 Compress-Archive -Path * -DestinationPath deploy.zip -Force
 
-# 直接部署到 Azure
+# Deploy directly to Azure
 az webapp deploy --resource-group aimee-test-env --name aimeelan --src-path deploy.zip --type zip
 ```
 
-### 方法 2：在 GitHub Actions 页面手动触发
+### Method 2: Manual Trigger on GitHub Actions Page
 
-GitHub → 仓库 → Actions → 选择 workflow → **Run workflow** 按钮  
-（workflow 配置了 `workflow_dispatch`，支持手动触发）
+GitHub → Repository → Actions → Select workflow → **Run workflow** button  
+(The workflow is configured with `workflow_dispatch`, supporting manual triggers)
 
-### 方法 3：重新运行失败的 workflow
+### Method 3: Re-run Failed Workflow
 
-GitHub → Actions → 点击失败的 run → **Re-run all jobs**
+GitHub → Actions → Click the failed run → **Re-run all jobs**
 
 ---
 
 ## FAQ
 
-**Q：我必须用 GitHub 才能部署吗？**  
-A：不是。GitHub Actions 只是自动化工具。你也可以用 Azure CLI 从本地直接部署（见"手动部署"）。
-但 GitHub Actions 最方便——push 一下就自动部署，不用记任何命令。
+**Q: Do I have to use GitHub to deploy?**  
+A: No. GitHub Actions is just an automation tool. You can deploy directly from local using Azure CLI (see "Manual Deployment"). But GitHub Actions is the most convenient — push once and it auto-deploys; no commands to remember.
 
-**Q：push 到其他分支（不是 main）会触发部署吗？**  
-A：不会。workflow 只监听 `main` 分支。你可以在其他分支开发，测试好了再合并到 main。
+**Q: Will pushing to other branches (not main) trigger deployment?**  
+A: No. The workflow only monitors the `main` branch. You can develop on other branches and merge to main when ready.
 
-**Q：GitHub 上的 Secrets 是什么？**  
-A：是 Azure 的认证凭证，存储在 GitHub 仓库的 Settings → Secrets 中。
-GitHub Actions 用这些 Secrets 登录你的 Azure 账号来执行部署。
-它们是加密存储的，任何人（包括你）都看不到明文。
+**Q: What are the Secrets on GitHub?**  
+A: They are Azure authentication credentials stored in the GitHub repo under Settings → Secrets. GitHub Actions uses these Secrets to log into your Azure account for deployment. They are encrypted — no one (including you) can see the plaintext.
 
-**Q：修改 Azure 环境变量需要重新部署吗？**  
-A：不需要。Azure 修改环境变量后会自动重启 App Service，新的值立即生效。
+**Q: Do I need to redeploy after changing Azure environment variables?**  
+A: No. Azure automatically restarts the App Service after changing environment variables; new values take effect immediately.
 
-**Q：部署需要多久？**  
-A：通常 2-4 分钟。Build ~16 秒 + Deploy ~1-2 分钟 + Azure 构建+启动 ~30-60 秒。
+**Q: How long does deployment take?**  
+A: Typically 2–4 minutes. Build ~16 seconds + Deploy ~1–2 minutes + Azure build + startup ~30–60 seconds.
 
-**Q：可以回滚到之前的版本吗？**  
-A：可以。方法 1：`git revert` 回退代码再 push。方法 2：Azure Portal → 部署中心 → 选择之前的部署 → 重新部署。
+**Q: Can I roll back to a previous version?**  
+A: Yes. Method 1: `git revert` the code changes and push again. Method 2: Azure Portal → Deployment Center → select a previous deployment → redeploy.
