@@ -32,11 +32,12 @@ A full-stack personal portfolio website with admin dashboard, visitor analytics,
 ```
 my-website/
 ├── app.py                  # Flask backend (all API routes, DB, auth)
-├── requirements.txt        # Python dependencies
+├── seed_data.py            # Blog seed posts (loaded on first startup)
+├── requirements.txt        # Python dependencies (version-pinned)
+├── .env.example            # Environment variable template
 ├── .gitignore
+├── LICENSE
 ├── README.md
-├── ARCHITECTURE.md
-├── TROUBLESHOOTING.md
 ├── static/
 │   ├── verify.html         # Entry gate — name + email verification
 │   ├── index.html          # Main portfolio page (after verification)
@@ -46,6 +47,12 @@ my-website/
 │   ├── admin.html          # Admin dashboard (login, charts, tables, export)
 │   ├── style.css           # Dark theme with purple accents
 │   └── script.js           # Click tracking, pageview tracking, animations
+├── tests/
+│   └── test_app.py         # 50 unit tests (email, auth, routes, cache, parsers)
+├── docs/                   # Architecture & component documentation
+├── guides/                 # Deployment & migration guides
+├── tutorials/              # Step-by-step Azure setup tutorial
+├── screenshots/            # Website screenshots for README
 └── .github/
     └── workflows/
         └── main_aimeelan.yml   # GitHub Actions CI/CD pipeline
@@ -132,13 +139,26 @@ my-website/
 git clone https://github.com/hahAI111/aimeewebpage.git
 cd aimeewebpage
 
-# 2. Install dependencies
+# 2. Copy environment template and edit
+cp .env.example .env
+# Edit .env with your PostgreSQL connection string (at minimum)
+
+# 3. Install dependencies
 pip install -r requirements.txt
 
-# 3. Run (uses local PostgreSQL by default)
+# 4. Run (uses local PostgreSQL by default)
 python app.py
 # → http://localhost:5000
 ```
+
+## Running Tests
+
+```bash
+pip install pytest
+python -m pytest tests/ -v
+```
+
+50 tests covering: email validation, IP hashing, connection string parsing, cache helpers, seed data integrity, Flask routes, auth, and pageview tracking.
 
 ## Environment Variables
 
