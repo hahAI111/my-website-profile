@@ -11,6 +11,7 @@ import time
 from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 from functools import wraps
+from urllib.parse import quote
 from flask import Flask, request, jsonify, send_from_directory, session, redirect, Response, make_response
 import psycopg2
 import psycopg2.extras
@@ -59,7 +60,7 @@ def _parse_redis_conn(raw):
         return raw
     parts = dict(p.split("=", 1) for p in raw.split(",") if "=" in p)
     host_port = raw.split(",")[0]
-    password = parts.get("password", "")
+    password = quote(parts.get("password", ""), safe="")
     use_ssl = parts.get("ssl", "False").lower() == "true"
     scheme = "rediss" if use_ssl else "redis"
     return f"{scheme}://:{password}@{host_port}/0"
@@ -83,12 +84,17 @@ BLOCKED_DOMAINS = {
 redis_client = None
 if REDIS_URL:
     try:
-        redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
+        redis_client = redis.Redis.from_url(
+            REDIS_URL, decode_responses=True,
+            socket_timeout=5, socket_connect_timeout=5,
+        )
         redis_client.ping()
-        print("Redis connected successfully")
+        print("Redis connected successfully", flush=True)
     except Exception as e:
-        print(f"Redis connection failed: {e}")
+        print(f"Redis connection failed: {e}", flush=True)
         redis_client = None
+else:
+    print("Redis URL not set, skipping", flush=True)
 
 def cache_get(key):
     if redis_client:
