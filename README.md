@@ -31,40 +31,44 @@ A full-stack personal portfolio website with admin dashboard, visitor analytics,
 
 ```
 my-website/
-├── app.py                  # Main backend (971 lines) — see detailed breakdown below
-├── seed_data.py            # Blog seed data (336 lines) — see detailed breakdown below
-├── requirements.txt        # Python dependencies (version-pinned)
-├── .env.example            # Environment variable template
-├── .gitignore
-├── LICENSE
+├── app.py                       # Main Flask backend — 971 lines, 22 API routes, DB, Redis, auth, email
+├── seed_data.py                 # 5 blog posts in Markdown — auto-loaded on first startup
+├── requirements.txt             # Python deps: Flask, psycopg2, redis, gunicorn, bcrypt
+├── .env.example                 # Template for all 12 environment variables
+├── .gitignore                   # Ignores .env, __pycache__, .pyc, venv, logs, test artifacts
+├── LICENSE                      # MIT License
 ├── README.md
-├── static/                 # Frontend files (Flask serves from this folder)
-│   ├── verify.html         # Entry gate — name + email verification
-│   ├── index.html          # Main portfolio page (after verification)
-│   ├── blog.html           # Blog listing with tag filtering & pagination
-│   ├── post.html           # Individual blog post (Markdown + code highlight)
-│   ├── projects.html       # GitHub project showcase
-│   ├── admin.html          # Admin dashboard (login, charts, tables, export)
-│   ├── style.css           # Dark theme with purple accents
-│   └── script.js           # Click tracking, pageview tracking, animations
-├── tests/                  # Unit tests (pytest)
-│   └── test_app.py         # 50 unit tests (341 lines) — see detailed breakdown below
-├── guides/                 # How-to guides — step-by-step instructions
-│   ├── HOW_TO_DEPLOY.md    # 5 deployment methods (local, Railway, Azure, VPS)
-│   ├── AZURE_SETUP_GUIDE.md    # Step-by-step Azure Portal resource setup
-│   ├── DEPLOYMENT.md       # CI/CD pipeline — GitHub Actions workflow config
-│   ├── BACKUP_AND_MIGRATION.md  # What to back up, how to migrate platforms
-│   └── TROUBLESHOOTING.md  # Common issues & solutions with fix commands
-├── reference/              # Technical deep-dives — how the system works
-│   ├── ARCHITECTURE.md     # System design, DB schema, security, data flow
-│   ├── FLASK.md            # All 22 routes, decorators, request lifecycle
-│   ├── POSTGRESQL.md       # Database schema, SQL queries, monitoring
-│   ├── REDIS.md            # Cache strategy, key patterns, Azure Redis
-│   └── STORY.md            # Full project build narrative from zero to prod
-├── images/                 # Website screenshots for README
+├── static/                      # Frontend — Flask serves HTML/CSS/JS from here
+│   ├── verify.html              # Landing page: name + email form, disposable email blocking
+│   ├── index.html               # Portfolio page: hero, about, skills, experience, contact form
+│   ├── blog.html                # Blog listing: tag filter sidebar, pagination, post cards
+│   ├── post.html                # Single post: Markdown rendering (marked.js), code highlighting
+│   ├── projects.html            # GitHub repos: cards with language, stars, forks, demo links
+│   ├── admin.html               # Admin dashboard: login form, KPIs, charts, Redis panel, tables
+│   ├── style.css                # Dark theme (#1a1a2e), purple accents, responsive grid, animations
+│   └── script.js                # Client-side: click tracking, pageview API calls, scroll animations
+├── tests/                       # pytest test suite — run with: python -m pytest tests/ -v
+│   └── test_app.py              # 50 tests across 7 classes — see detailed breakdown below
+├── guides/                      # How-to guides — actionable step-by-step instructions
+│   ├── HOW_TO_DEPLOY.md         # Run locally, deploy to Railway, Render, Azure, or any VPS
+│   ├── AZURE_SETUP_GUIDE.md     # Create Resource Group → VNet → PostgreSQL → Redis → App Service
+│   ├── DEPLOYMENT.md            # GitHub Actions YAML walkthrough, build triggers, deploy steps
+│   ├── BACKUP_AND_MIGRATION.md  # Export DB, back up env vars, migrate to new platform
+│   └── TROUBLESHOOTING.md       # Container timeout, Redis auth, PG password, startup command fixes
+├── reference/                   # Technical reference — how the system works internally
+│   ├── ARCHITECTURE.md          # System diagram, 9 DB tables, security model, data flow
+│   ├── FLASK.md                 # All 22 routes with method, path, auth, request/response details
+│   ├── POSTGRESQL.md            # CREATE TABLE DDL, indexes, common queries, monitoring
+│   ├── REDIS.md                 # 6 cache keys, TTL strategy, memory monitoring, failover behavior
+│   └── STORY.md                 # Full narrative: from zero knowledge to production in one weekend
+├── images/                      # Screenshots embedded in this README
+│   ├── 01-verify.png            # Visitor verification page screenshot
+│   ├── 02-blog.png              # Blog listing page screenshot
+│   ├── 03-projects.png          # GitHub projects page screenshot
+│   └── 04-admin.png             # Admin dashboard screenshot
 └── .github/
     └── workflows/
-        └── main_aimeelan.yml   # GitHub Actions CI/CD pipeline
+        └── main_aimeelan.yml    # CI/CD: on push to main → build Python → deploy to Azure App Service
 ```
 
 ## Python Source Files — Detailed Breakdown
