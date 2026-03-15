@@ -8,11 +8,11 @@ A full-stack personal portfolio website with admin dashboard, visitor analytics,
 
 | Visitor Verification | Blog |
 |:---:|:---:|
-| ![Verify](screenshots/01-verify.png) | ![Blog](screenshots/02-blog.png) |
+| ![Verify](images/01-verify.png) | ![Blog](images/02-blog.png) |
 
 | GitHub Projects | Admin Dashboard |
 |:---:|:---:|
-| ![Projects](screenshots/03-projects.png) | ![Admin](screenshots/04-admin.png) |
+| ![Projects](images/03-projects.png) | ![Admin](images/04-admin.png) |
 
 ## Tech Stack
 
@@ -31,14 +31,14 @@ A full-stack personal portfolio website with admin dashboard, visitor analytics,
 
 ```
 my-website/
-├── app.py                  # Flask backend (all API routes, DB, auth)
-├── seed_data.py            # Blog seed posts (loaded on first startup)
+├── app.py                  # Main backend (971 lines) — see detailed breakdown below
+├── seed_data.py            # Blog seed data (336 lines) — see detailed breakdown below
 ├── requirements.txt        # Python dependencies (version-pinned)
 ├── .env.example            # Environment variable template
 ├── .gitignore
 ├── LICENSE
 ├── README.md
-├── static/
+├── static/                 # Frontend files (Flask serves from this folder)
 │   ├── verify.html         # Entry gate — name + email verification
 │   ├── index.html          # Main portfolio page (after verification)
 │   ├── blog.html           # Blog listing with tag filtering & pagination
@@ -47,9 +47,9 @@ my-website/
 │   ├── admin.html          # Admin dashboard (login, charts, tables, export)
 │   ├── style.css           # Dark theme with purple accents
 │   └── script.js           # Click tracking, pageview tracking, animations
-├── tests/
-│   └── test_app.py         # 50 unit tests (email, auth, routes, cache, parsers)
-├── docs/                   # All project documentation (10 files)
+├── tests/                  # Unit tests (pytest)
+│   └── test_app.py         # 50 unit tests (341 lines) — see detailed breakdown below
+├── documentation/          # All project documentation (10 files)
 │   ├── ARCHITECTURE.md     # System design, DB schema, security, data flow
 │   ├── FLASK.md            # All 22 routes, decorators, request flow
 │   ├── DEPLOYMENT.md       # CI/CD pipeline, GitHub Actions, Azure deploy
@@ -60,11 +60,75 @@ my-website/
 │   ├── HOW_TO_DEPLOY.md    # 5 deployment methods (local, Railway, Azure...)
 │   ├── BACKUP_AND_MIGRATION.md  # Backup guide & platform migration
 │   └── AZURE_SETUP_GUIDE.md    # Step-by-step Azure Portal setup tutorial
-├── screenshots/            # Website screenshots for README
+├── images/                 # Website screenshots for README
 └── .github/
     └── workflows/
         └── main_aimeelan.yml   # GitHub Actions CI/CD pipeline
 ```
+
+## Python Source Files — Detailed Breakdown
+
+### `app.py` — Main Backend (971 lines)
+
+The entire Flask backend in a single file. Contains all API routes, database operations, caching, authentication, and background tasks.
+
+| Section | Lines | What It Does |
+|---------|-------|-------------|
+| Configuration | 24-36 | Flask app init, `SECRET_KEY`, admin credentials, SMTP config, GitHub settings |
+| Connection String Parsers | 38-55 | `_parse_pg_conn()` — converts Azure semicolon-delimited PostgreSQL connection string to psycopg2 DSN format |
+| Connection String Parsers | 57-88 | `_parse_redis_conn()` — extracts host, port, password, SSL from Azure Redis connection string |
+| Redis Cache | 90-140 | Connects to Azure Redis on startup; `cache_get()`, `cache_set()`, `cache_delete()` helper functions |
+| Database | 142-340 | `get_db()` — opens PostgreSQL connection; `init_db()` — creates all 9 tables on first run; `_seed_blog_posts()` — inserts 5 sample posts; `_seed_github_projects()` — syncs repos from GitHub API |
+| Background Sync | 342-356 | `_github_sync_loop()` — daemon thread that syncs GitHub repos every 6 hours |
+| Helpers | 358-406 | `is_valid_email()` — validates email + blocks disposable domains; `send_notification()` — sends email via SMTP; `require_verified` / `require_admin` — route decorators; `hash_ip()` — SHA-256 IP anonymization |
+| Static Routes | 408-433 | Serves HTML pages: `/` (verify or index), `/blog`, `/blog/<slug>`, `/projects`, `/admin`, catch-all for CSS/JS |
+| Visitor API | 435-465 | `POST /api/verify` — validates name + email, creates visitor record, sets session token |
+| Pageview API | 466-505 | `POST /api/pageview` — records page view with referrer, user-agent, IP hash, screen width, duration |
+| Click Tracking API | 506-525 | `POST /api/track` — logs click events (`data-track` attribute) with visitor ID and page |
+| Contact API | 527-553 | `POST /api/contact` — saves message to DB + sends email notification to owner |
+| Blog API | 555-674 | `GET /api/posts` — list posts with tag filter + pagination (cached); `GET /api/posts/<slug>` — single post (cached); `GET /api/tags` — tag list with counts (cached) |
+| Projects API | 676-734 | `GET /api/projects` — list synced repos (cached); `POST /api/projects/sync` — trigger GitHub sync (admin only) |
+| Admin Auth | 736-761 | `POST /api/admin/login` — bcrypt password check, session auth; `POST /api/admin/logout` |
+| Admin Stats API | 763-873 | `GET /api/admin/stats` — full dashboard data: KPIs, Redis info (memory, keys, endpoints), charts (visitors/day, pageviews/day, top clicks, devices, email domains, top pages, top posts, recent messages) |
+| Admin Visitors API | 874-907 | `GET /api/admin/visitors` — paginated visitor list with domain filtering |
+| Admin Export API | 908-934 | `GET /api/admin/export/<table>` — CSV download for visitors, click_logs, messages, page_views |
+| Admin Retention API | 935-968 | `GET /api/admin/retention` — cohort retention analysis (Day 0/1/7/30) using SQL CTEs |
+| Run | 969-971 | `app.run()` — starts dev server on port 5000 |
+
+### `seed_data.py` — Blog Seed Data (336 lines)
+
+Contains the 5 initial blog posts loaded by `app.py` when the `posts` table is empty on first startup. Separated from `app.py` for cleaner code organization.
+
+| Variable | What It Contains |
+|----------|------------------|
+| `SEED_POSTS` | List of 5 blog post dicts, each with: `slug`, `title`, `summary`, `content` (full Markdown with code examples), `tags` |
+
+The 5 seed posts:
+1. **From Answering Tickets to Building Tools** — Career growth narrative at Microsoft
+2. **Azure Private Endpoints & VNet** — Networking concepts with diagrams
+3. **Azure OpenAI Service Troubleshooting** — Common issues + diagnostic Python code
+4. **Building Internal Diagnostic Tools with Python** — Real tool examples with code
+5. **PostgreSQL Query Optimization** — Slow query analysis, EXPLAIN plans, indexing
+
+Also contains embedded Python code examples (a diagnostic function `check_openai_resource()` and log analysis function `analyze_error_patterns()`) that appear as code blocks within blog post content.
+
+### `tests/test_app.py` — Unit Tests (341 lines, 50 tests)
+
+Comprehensive test suite using `unittest` + `pytest`. Patches the database on import so tests run without a real PostgreSQL connection.
+
+| Test Class | Tests | What It Covers |
+|------------|-------|---------------|
+| `TestEmailValidation` | 12 | Valid emails, invalid formats, disposable domains (mailinator, guerrillamail, etc.) |
+| `TestHashIp` | 5 | SHA-256 IP hashing, consistency, uniqueness, IPv6 support |
+| `TestConnectionParsers` | 8 | Azure PostgreSQL + Redis connection string parsing, edge cases, malformed input |
+| `TestCacheHelpers` | 8 | `cache_get`/`cache_set`/`cache_delete` with Redis connected and disconnected |
+| `TestSeedData` | 6 | Seed post integrity — required fields, unique slugs, tag format, content length |
+| `TestFlaskRoutes` | 8 | HTTP routes return correct status codes and content types (HTML pages, API endpoints, admin auth) |
+| `TestPageviewAPI` | 3 | Pageview tracking API — valid submission, missing fields, session handling |
+
+Run with: `python -m pytest tests/ -v`
+
+---
 
 ## Features
 
@@ -277,20 +341,20 @@ Below the metrics is a **Cached Endpoints** table listing all 6 cache keys:
 
 ## Related Docs
 
-All documentation is in the [`docs/`](docs/) folder:
+All documentation is in the [`documentation/`](documentation/) folder:
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, database design, data flow diagrams |
-| [FLASK.md](docs/FLASK.md) | All 22 routes, auth decorators, request flow |
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | CI/CD pipeline, GitHub Actions workflow |
-| [POSTGRESQL.md](docs/POSTGRESQL.md) | Database schema, SQL operations, monitoring |
-| [REDIS.md](docs/REDIS.md) | Cache strategy, core functions, Azure Redis |
-| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Issues & solutions from development |
-| [STORY.md](docs/STORY.md) | Full project journey narrative |
-| [HOW_TO_DEPLOY.md](docs/HOW_TO_DEPLOY.md) | 5 deployment methods (local, Railway, Azure, VPS) |
-| [BACKUP_AND_MIGRATION.md](docs/BACKUP_AND_MIGRATION.md) | Backup guide & platform migration |
-| [AZURE_SETUP_GUIDE.md](docs/AZURE_SETUP_GUIDE.md) | Step-by-step Azure Portal setup tutorial |
+| [ARCHITECTURE.md](documentation/ARCHITECTURE.md) | System architecture, database design, data flow diagrams |
+| [FLASK.md](documentation/FLASK.md) | All 22 routes, auth decorators, request flow |
+| [DEPLOYMENT.md](documentation/DEPLOYMENT.md) | CI/CD pipeline, GitHub Actions workflow |
+| [POSTGRESQL.md](documentation/POSTGRESQL.md) | Database schema, SQL operations, monitoring |
+| [REDIS.md](documentation/REDIS.md) | Cache strategy, core functions, Azure Redis |
+| [TROUBLESHOOTING.md](documentation/TROUBLESHOOTING.md) | Issues & solutions from development |
+| [STORY.md](documentation/STORY.md) | Full project journey narrative |
+| [HOW_TO_DEPLOY.md](documentation/HOW_TO_DEPLOY.md) | 5 deployment methods (local, Railway, Azure, VPS) |
+| [BACKUP_AND_MIGRATION.md](documentation/BACKUP_AND_MIGRATION.md) | Backup guide & platform migration |
+| [AZURE_SETUP_GUIDE.md](documentation/AZURE_SETUP_GUIDE.md) | Step-by-step Azure Portal setup tutorial |
 
 ## Production Incident Log (March 2026)
 
