@@ -196,23 +196,74 @@ git push
 
 GitHub Actions will build and deploy to Azure App Service automatically.
 
+## How to Use
+
+### Visitor Flow
+
+1. Open https://aimeelan.azurewebsites.net
+2. Enter your **name** and **email** on the verification page
+3. After verification, browse the portfolio, blog, and projects pages
+4. Use the **Contact** form at the bottom to send a message
+
+### Admin Dashboard
+
+1. Open https://aimeelan.azurewebsites.net/admin
+2. Login with admin credentials (set via `ADMIN_USER` / `ADMIN_PASS` env vars)
+3. The dashboard shows:
+   - **KPI Cards** — Total visitors, page views, clicks, messages, blog posts
+   - **Redis Status** — Connected/Disconnected, memory usage, cached keys count, all 6 cached endpoints with TTLs
+   - **Charts** — Visitors per day, pageviews per day, top clicked elements, device types, email domains
+   - **Top Pages & Posts** — Most viewed pages and blog posts
+   - **Recent Messages** — Latest messages from the contact form
+   - **Visitor List** — Paginated table with domain filtering
+   - **Retention Cohorts** — Day 0/1/7/30 visitor retention analysis
+4. **CSV Export** — Click "Export" buttons to download visitors, clicks, messages, or pageviews as CSV
+5. **GitHub Sync** — Click "Sync Projects" to pull latest repos from GitHub API
+
+### Blog
+
+- Browse posts at `/blog`, filter by tags (Azure, Python, AI, SQL, etc.)
+- Each post supports Markdown rendering with syntax-highlighted code blocks
+- View counts auto-increment on each visit
+
+### GitHub Projects
+
+- View synced repos at `/projects`
+- Projects sync automatically every 6 hours, or manually via admin "Sync Projects"
+
+## Azure Infrastructure
+
+| Resource | Service | Details |
+|----------|---------|---------|
+| App Service | `aimeelan` | Linux Python 3.14, Canada Central |
+| PostgreSQL | `aimeelan-server` | Flexible Server v14, 1 vCore Burstable |
+| Redis | `aimee-cache` | Basic C0, Redis 6.0, SSL port 6380 |
+| VNet | Private networking | App Service, PostgreSQL, Redis on private subnets |
+| CI/CD | GitHub Actions | Auto-deploy on push to `main` |
+
+### Key App Settings
+
+| Setting | Purpose |
+|---------|---------|
+| `AZURE_POSTGRESQL_CONNECTIONSTRING` | Database connection (set as Connection String, not App Setting) |
+| `AZURE_REDIS_CONNECTIONSTRING` | Redis connection with password and SSL |
+| `WEBSITES_CONTAINER_START_TIME_LIMIT` | Set to `600` (cert updates take ~3 min on startup) |
+| `WEBSITE_VNET_ROUTE_ALL` | `1` — routes all traffic through VNet |
+| `WEBSITE_DNS_SERVER` | `168.63.129.16` — Azure internal DNS for private endpoints |
+
 ## Related Docs
 
 All documentation is in the [`docs/`](docs/) folder:
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System architecture, database design, data flow diagrams
-- [FLASK.md](docs/FLASK.md) — How Flask powers the backend: all 22 routes, auth decorators, request flow
-- [DEPLOYMENT.md](docs/DEPLOYMENT.md) — CI/CD pipeline, GitHub Actions workflow, deployment guide
-- [POSTGRESQL.md](docs/POSTGRESQL.md) — Database schema, SQL operations, monitoring & maintenance
-- [REDIS.md](docs/REDIS.md) — Cache strategy, core functions, Azure Redis monitoring
-- [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — Issues encountered during development and solutions
-- [STORY.md](docs/STORY.md) — The full project journey from scratch to production
-
-### Guides (in [`guides/`](guides/))
-
-- [BACKUP_AND_MIGRATION.md](guides/BACKUP_AND_MIGRATION.md) — What to back up, what you'll lose, and how to migrate to a new platform
-- [HOW_TO_DEPLOY.md](guides/HOW_TO_DEPLOY.md) — How to run the code locally and deploy to Railway, Render, Azure, or any VPS
-
-### Tutorials (in [`tutorials/`](tutorials/))
-
-- [AZURE_SETUP_GUIDE.md](tutorials/AZURE_SETUP_GUIDE.md) — Step-by-step Azure cloud setup: Resource Group, VNet, PostgreSQL, Redis, App Service, CI/CD, monitoring, and cost estimation
+| Document | Description |
+|----------|-------------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, database design, data flow diagrams |
+| [FLASK.md](docs/FLASK.md) | All 22 routes, auth decorators, request flow |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | CI/CD pipeline, GitHub Actions workflow |
+| [POSTGRESQL.md](docs/POSTGRESQL.md) | Database schema, SQL operations, monitoring |
+| [REDIS.md](docs/REDIS.md) | Cache strategy, core functions, Azure Redis |
+| [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) | Issues & solutions from development |
+| [STORY.md](docs/STORY.md) | Full project journey narrative |
+| [HOW_TO_DEPLOY.md](docs/HOW_TO_DEPLOY.md) | 5 deployment methods (local, Railway, Azure, VPS) |
+| [BACKUP_AND_MIGRATION.md](docs/BACKUP_AND_MIGRATION.md) | Backup guide & platform migration |
+| [AZURE_SETUP_GUIDE.md](docs/AZURE_SETUP_GUIDE.md) | Step-by-step Azure Portal setup tutorial |
