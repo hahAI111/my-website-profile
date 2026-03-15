@@ -294,75 +294,75 @@ All documentation is in the [`docs/`](docs/) folder:
 
 ## Production Incident Log (March 2026)
 
-Admin 面板 Redis 显示 "Not Connected"，尝试修复过程中引发了一系列连锁问题。以下是完整的排查过程和最终解决方案。
+The admin dashboard showed Redis as "Not Connected". During the fix, a chain of cascading issues occurred. Below is the full troubleshooting timeline and resolution.
 
-### 问题 1：Redis 显示 Not Connected
+### Issue 1: Redis Not Connected
 
-**现象：** Admin 面板 Redis Cache 状态显示 ❌ Not Connected
+**Symptom:** Admin panel Redis Cache status showed ❌ Not Connected
 
-**根因：** Azure Redis 的 `disableAccessKeyAuthentication` 被设为 `true`，导致密码认证被禁用，app 用密码连接时被拒绝。
+**Root Cause:** Azure Redis had `disableAccessKeyAuthentication` set to `true`, which disabled password-based auth. The app connects with a password and was rejected.
 
-**解决：**
+**Fix:**
 ```bash
 az redis update --name aimee-cache --resource-group aimee-test-env \
   --set disableAccessKeyAuthentication=false
 ```
 
-### 问题 2：修复 Redis 后 App 启动命令被改坏
+### Issue 2: Startup Command Corrupted During Redis Fix
 
-**现象：** 网站完全无法访问，容器不断重启（exit code 127）
+**Symptom:** Site completely inaccessible, container crash-looping (exit code 127)
 
-**根因：** 启动命令被误改为 `startup.sh`（文件不存在），正确命令是 gunicorn。
+**Root Cause:** Startup command was accidentally changed to `startup.sh` (file does not exist). The correct command is gunicorn.
 
-**解决：**
+**Fix:**
 ```bash
 az webapp config set --name aimeelan --resource-group aimee-test-env \
   --startup-file "gunicorn --bind=0.0.0.0:8000 --timeout 600 app:app"
 ```
 
-### 问题 3：容器启动超时（230s）
+### Issue 3: Container Startup Timeout (230s)
 
-**现象：** 容器日志显示 `Container did not start within expected time limit of 230s`
+**Symptom:** Docker logs showed `Container did not start within expected time limit of 230s`
 
-**根因：** Azure App Service Linux 容器启动时会执行 SSL 证书更新（`update-ca-certificates`），耗时约 2.5-3 分钟，超过默认 230 秒限制。
+**Root Cause:** Azure App Service Linux containers run `update-ca-certificates` on startup, which takes ~2.5-3 minutes. This exceeds the default 230-second timeout.
 
-**解决：**
+**Fix:**
 ```bash
 az webapp config appsettings set --name aimeelan --resource-group aimee-test-env \
   --settings WEBSITES_CONTAINER_START_TIME_LIMIT=600
 ```
 
-### 问题 4：PostgreSQL 密码认证失败
+### Issue 4: PostgreSQL Password Authentication Failed
 
-**现象：** 网站首页正常（HTTP 200），但 `/api/admin/stats` 返回 500。日志显示 `FATAL: password authentication failed for user "prjxaadsjr"`
+**Symptom:** Homepage returned HTTP 200, but `/api/admin/stats` returned 500. Logs showed `FATAL: password authentication failed for user "prjxaadsjr"`
 
-**根因：** 旧密码含特殊字符 `$`，在多次环境变量传递中被破坏。
+**Root Cause:** The old password contained the `$` special character, which was corrupted during environment variable passing across shells.
 
-**解决：**
+**Fix:**
 ```bash
-# 1. 重置 PostgreSQL 密码
+# 1. Reset PostgreSQL password
 az postgres flexible-server update --name aimeelan-server \
   --resource-group aimee-test-env --admin-password "Aimee2026Pg!"
 
-# 2. 更新 App Service 连接字符串
+# 2. Update App Service connection string
 az webapp config connection-string set --name aimeelan \
   --resource-group aimee-test-env -t Custom \
   --settings "AZURE_POSTGRESQL_CONNECTIONSTRING=Database=aimeelan-database;Server=aimeelan-server.postgres.database.azure.com;User Id=prjxaadsjr;Password=Aimee2026Pg!"
 ```
 
-### 最终状态
+### Final Status
 
-| 组件 | 状态 |
-|------|------|
-| 网站 (HTTP 200) | ✅ 正常 |
-| Redis (Admin 面板) | ✅ Connected |
-| PostgreSQL | ✅ 认证通过 |
-| Admin Stats API | ✅ 返回完整数据 |
-| 容器启动 | ✅ ~280s 内完成 |
+| Component | Status |
+|-----------|--------|
+| Website (HTTP 200) | ✅ OK |
+| Redis (Admin Panel) | ✅ Connected |
+| PostgreSQL | ✅ Auth OK |
+| Admin Stats API | ✅ Full data returned |
+| Container Startup | ✅ ~280s |
 
-### 教训
+### Lessons Learned
 
-1. **不要在生产环境上同时改多个配置** — 一次只改一个，验证后再改下一个
-2. **Azure Redis `disableAccessKeyAuthentication` 可能被 Azure Policy 自动恢复为 `true`** — 需要检查订阅级别的策略
-3. **密码中避免使用 `$` 等 shell 特殊字符** — 在环境变量、连接字符串、PowerShell 之间传递时容易被转义破坏
-4. **容器启动超时设为 600s** — Azure Linux 容器的证书更新是固定开销，默认 230s 不够
+1. **Never change multiple production configs at once** — change one, verify, then move to the next
+2. **Azure Redis `disableAccessKeyAuthentication` may revert to `true` via Azure Policy** — check subscription-level policies
+3. **Avoid `$` and other shell special characters in passwords** — they get corrupted when passed through environment variables, connection strings, and PowerShell
+4. **Set container startup timeout to 600s** — Azure Linux container cert updates are a fixed overhead; the default 230s is not enough
