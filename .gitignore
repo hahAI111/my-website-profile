@@ -12,3 +12,5 @@ venv/
 deepseek_ttft_bench*.py
 ttft_results*.csv
 cookies.txt
+
+*.zip
