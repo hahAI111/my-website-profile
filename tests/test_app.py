@@ -109,22 +109,25 @@ class TestConnectionParsers(unittest.TestCase):
     def test_redis_conn_standard_format(self):
         raw = "redis://localhost:6379/0"
         result = portfolio_app._parse_redis_conn(raw)
-        self.assertEqual(result, raw)
+        self.assertEqual(result, {"url": raw})
 
     def test_redis_conn_azure_format(self):
         raw = "mycache.redis.cache.windows.net:6380,password=abc123,ssl=True,abortConnect=False"
         result = portfolio_app._parse_redis_conn(raw)
-        self.assertIn("rediss://", result)  # ssl=True -> rediss://
-        self.assertIn("abc123", result)
+        self.assertEqual(result["host"], "mycache.redis.cache.windows.net")
+        self.assertEqual(result["port"], 6380)
+        self.assertEqual(result["password"], "abc123")
+        self.assertTrue(result["ssl"])
 
     def test_redis_conn_no_ssl(self):
         raw = "localhost:6379,password=test,ssl=False"
         result = portfolio_app._parse_redis_conn(raw)
-        self.assertTrue(result.startswith("redis://"))
+        self.assertEqual(result["host"], "localhost")
+        self.assertFalse(result["ssl"])
 
     def test_redis_conn_empty(self):
         result = portfolio_app._parse_redis_conn("")
-        self.assertEqual(result, "")
+        self.assertIsNone(result)
 
 
 class TestCacheHelpers(unittest.TestCase):
