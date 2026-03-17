@@ -88,31 +88,52 @@ BLOCKED_DOMAINS = {
 }
 
 # ── Redis Cache ────────────────────────────────────────────
-redis_client = None
-if _redis_cfg:
-    try:
-        if "url" in _redis_cfg:
-            redis_client = redis.Redis.from_url(
-                _redis_cfg["url"], decode_responses=True,
+def _connect_redis():
+    """Connect to Redis: try access-key first, then Managed Identity (Entra ID)."""
+    if not _redis_cfg:
+        print("Redis connection string not set, skipping", flush=True)
+        return None
+
+    host = _redis_cfg.get("host", "")
+    port = _redis_cfg.get("port", 6380)
+    use_ssl = _redis_cfg.get("ssl", True)
+
+    # Attempt 1: access-key auth
+    if _redis_cfg.get("password"):
+        try:
+            client = redis.Redis(
+                host=host, port=port,
+                password=_redis_cfg["password"],
+                ssl=use_ssl, decode_responses=True,
                 socket_timeout=5, socket_connect_timeout=5,
             )
-        else:
-            redis_client = redis.Redis(
-                host=_redis_cfg["host"],
-                port=_redis_cfg["port"],
-                password=_redis_cfg["password"],
-                ssl=_redis_cfg["ssl"],
-                decode_responses=True,
-                socket_timeout=5,
-                socket_connect_timeout=5,
-            )
-        redis_client.ping()
-        print("Redis connected successfully", flush=True)
+            client.ping()
+            print("Redis connected (access-key)", flush=True)
+            return client
+        except Exception as e:
+            print(f"Redis access-key auth failed: {e}", flush=True)
+
+    # Attempt 2: Managed Identity / Entra ID token auth
+    try:
+        from azure.identity import DefaultAzureCredential
+        cred = DefaultAzureCredential()
+        token = cred.get_token("https://redis.azure.com/.default")
+        client = redis.Redis(
+            host=host, port=port,
+            username=os.environ.get("AZURE_CLIENT_ID", "default"),
+            password=token.token,
+            ssl=use_ssl, decode_responses=True,
+            socket_timeout=5, socket_connect_timeout=5,
+        )
+        client.ping()
+        print("Redis connected (Entra ID / Managed Identity)", flush=True)
+        return client
     except Exception as e:
-        print(f"Redis connection failed: {e}", flush=True)
-        redis_client = None
-else:
-    print("Redis connection string not set, skipping", flush=True)
+        print(f"Redis Entra ID auth failed: {e}", flush=True)
+
+    return None
+
+redis_client = _connect_redis()
 
 def cache_get(key):
     if redis_client:

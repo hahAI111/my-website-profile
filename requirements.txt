@@ -3,4 +3,6 @@ gunicorn>=22.0
 psycopg2-binary>=2.9
 redis>=5.0
 requests>=2.31
+azure-identity>=1.15
+bcrypt>=4.0
 bcrypt>=4.1
