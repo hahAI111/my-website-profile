@@ -101,7 +101,6 @@ if _redis_cfg:
                 host=_redis_cfg["host"],
                 port=_redis_cfg["port"],
                 password=_redis_cfg["password"],
-                username="default",
                 ssl=_redis_cfg["ssl"],
                 decode_responses=True,
                 socket_timeout=5,
