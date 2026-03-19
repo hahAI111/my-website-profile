@@ -402,6 +402,51 @@ try:
 except Exception as e:
     print(f"DB init warning (will retry on first request): {e}")
 
+# ── Diagnostic endpoint (temporary) ───────────────────────
+@app.route("/api/diag/db")
+def _diag_db():
+    results = {"pg_parts_host": _pg_parts.get("host", ""), "pg_parts_dbname": _pg_parts.get("dbname", "")}
+    # Test MI token
+    try:
+        from azure.identity import DefaultAzureCredential
+        cred = DefaultAzureCredential()
+        token_resp = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
+        results["mi_token"] = "OK (length={})".format(len(token_resp.token))
+        results["mi_expires_on"] = token_resp.expires_on
+    except Exception as e:
+        results["mi_token_error"] = str(e)
+    # Test MI PG connection
+    try:
+        from azure.identity import DefaultAzureCredential
+        cred = DefaultAzureCredential()
+        tok = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
+        conn = psycopg2.connect(
+            host=_pg_parts.get("host", ""), dbname=_pg_parts.get("dbname", ""),
+            user="aimeelan-mi", password=tok.token, sslmode="require",
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        results["mi_pg_connect"] = "OK"
+        cur.close()
+        conn.close()
+    except Exception as e:
+        results["mi_pg_connect_error"] = str(e)
+    # Test password PG connection
+    try:
+        conn = psycopg2.connect(
+            host=_pg_parts.get("host", ""), dbname=_pg_parts.get("dbname", ""),
+            user=_pg_parts.get("user", ""), password=_pg_parts.get("password", ""),
+            sslmode="require",
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT 1")
+        results["pw_pg_connect"] = "OK"
+        cur.close()
+        conn.close()
+    except Exception as e:
+        results["pw_pg_connect_error"] = str(e)
+    return jsonify(results)
+
 # ── Background GitHub Sync (every 6 hours) ────────────────
 GITHUB_SYNC_INTERVAL = int(os.environ.get("GITHUB_SYNC_INTERVAL", "21600"))  # default 6h
 
