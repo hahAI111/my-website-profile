@@ -36,23 +36,30 @@ GITHUB_USERNAME = os.environ.get("GITHUB_USERNAME", "hahAI111")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
 
 # ── Connection String Parsers ──────────────────────────────
-def _parse_pg_conn(raw):
-    if not raw or raw.startswith("host="):
-        return raw
+def _parse_pg_parts(raw):
+    """Parse Azure PG connection string into dict with host, dbname, user, password."""
+    if not raw:
+        return {"host": "localhost", "dbname": "portfoliodb", "user": "postgres", "password": "postgres"}
+    if raw.startswith("host="):
+        parts = dict(p.split("=", 1) for p in raw.split() if "=" in p)
+        return parts
     parts = dict(p.split("=", 1) for p in raw.split(";") if "=" in p)
-    return (
-        f"host={parts.get('Server','')} "
-        f"dbname={parts.get('Database','')} "
-        f"user={parts.get('User Id','')} "
-        f"password={parts.get('Password','')}"
-    )
+    return {
+        "host": parts.get("Server", ""),
+        "dbname": parts.get("Database", ""),
+        "user": parts.get("User Id", ""),
+        "password": parts.get("Password", ""),
+    }
 
 _raw_pg = (
     os.environ.get("AZURE_POSTGRESQL_CONNECTIONSTRING")
     or os.environ.get("CUSTOMCONNSTR_AZURE_POSTGRESQL_CONNECTIONSTRING")
-    or "host=localhost dbname=portfoliodb user=postgres password=postgres"
+    or ""
 )
-DATABASE_URL = _parse_pg_conn(_raw_pg)
+_pg_parts = _parse_pg_parts(_raw_pg)
+
+# Legacy DATABASE_URL for backward compat (used nowhere critical now)
+DATABASE_URL = f"host={_pg_parts.get('host','')} dbname={_pg_parts.get('dbname','')} user={_pg_parts.get('user','')} password={_pg_parts.get('password','')}"
 
 def _parse_redis_conn(raw):
     """Parse Azure Redis connection string into dict of {host, port, password, ssl}."""
@@ -160,8 +167,44 @@ def cache_delete(pattern):
             pass
 
 # ── Database (PostgreSQL) ──────────────────────────────────
+_pg_token_cache = {"token": None, "expires_on": 0}
+
 def get_db():
-    conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+    """Connect to PostgreSQL: try Managed Identity first, then password fallback."""
+    host = _pg_parts.get("host", "localhost")
+    dbname = _pg_parts.get("dbname", "portfoliodb")
+
+    # Attempt 1: Managed Identity / Entra ID token (Azure only)
+    if host.endswith(".database.azure.com"):
+        try:
+            now = time.time()
+            if _pg_token_cache["token"] and _pg_token_cache["expires_on"] > now + 60:
+                token = _pg_token_cache["token"]
+            else:
+                from azure.identity import DefaultAzureCredential
+                cred = DefaultAzureCredential()
+                token_resp = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
+                token = token_resp.token
+                _pg_token_cache["token"] = token
+                _pg_token_cache["expires_on"] = token_resp.expires_on
+            conn = psycopg2.connect(
+                host=host, dbname=dbname,
+                user="aimeelan-mi",
+                password=token,
+                sslmode="require",
+            )
+            return conn
+        except Exception as e:
+            print(f"PG Entra ID auth failed: {e}", flush=True)
+
+    # Attempt 2: password auth (fallback / local dev)
+    user = _pg_parts.get("user", "postgres")
+    password = _pg_parts.get("password", "postgres")
+    conn = psycopg2.connect(
+        host=host, dbname=dbname,
+        user=user, password=password,
+        sslmode="require",
+    )
     return conn
 
 def init_db():

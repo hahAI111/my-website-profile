@@ -87,24 +87,27 @@ class TestConnectionParsers(unittest.TestCase):
 
     def test_pg_conn_standard_format(self):
         raw = "host=myhost dbname=mydb user=me password=secret"
-        result = portfolio_app._parse_pg_conn(raw)
-        self.assertEqual(result, raw)  # already in standard format
+        result = portfolio_app._parse_pg_parts(raw)
+        self.assertEqual(result["host"], "myhost")
+        self.assertEqual(result["dbname"], "mydb")
+        self.assertEqual(result["user"], "me")
+        self.assertEqual(result["password"], "secret")
 
     def test_pg_conn_azure_format(self):
         raw = "Server=myhost.postgres.database.azure.com;Database=mydb;User Id=admin;Password=secret"
-        result = portfolio_app._parse_pg_conn(raw)
-        self.assertIn("host=myhost.postgres.database.azure.com", result)
-        self.assertIn("dbname=mydb", result)
-        self.assertIn("user=admin", result)
-        self.assertIn("password=secret", result)
+        result = portfolio_app._parse_pg_parts(raw)
+        self.assertEqual(result["host"], "myhost.postgres.database.azure.com")
+        self.assertEqual(result["dbname"], "mydb")
+        self.assertEqual(result["user"], "admin")
+        self.assertEqual(result["password"], "secret")
 
     def test_pg_conn_none(self):
-        result = portfolio_app._parse_pg_conn(None)
-        self.assertIsNone(result)
+        result = portfolio_app._parse_pg_parts(None)
+        self.assertEqual(result["host"], "localhost")
 
     def test_pg_conn_empty(self):
-        result = portfolio_app._parse_pg_conn("")
-        self.assertEqual(result, "")
+        result = portfolio_app._parse_pg_parts("")
+        self.assertEqual(result["host"], "localhost")
 
     def test_redis_conn_standard_format(self):
         raw = "redis://localhost:6379/0"
