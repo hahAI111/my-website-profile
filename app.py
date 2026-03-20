@@ -170,35 +170,32 @@ def cache_delete(pattern):
 _pg_token_cache = {"token": None, "expires_on": 0}
 
 def get_db():
-    """Connect to PostgreSQL: try Managed Identity first, then password fallback."""
+    """Connect to PostgreSQL using Managed Identity (Entra ID) on Azure, password locally."""
     host = _pg_parts.get("host", "localhost")
     dbname = _pg_parts.get("dbname", "portfoliodb")
 
-    # Attempt 1: Managed Identity / Entra ID token (Azure only)
+    # Azure: Managed Identity only — no password fallback
     if host.endswith(".database.azure.com"):
-        try:
-            now = time.time()
-            if _pg_token_cache["token"] and _pg_token_cache["expires_on"] > now + 60:
-                token = _pg_token_cache["token"]
-            else:
-                from azure.identity import DefaultAzureCredential
-                cred = DefaultAzureCredential(connection_timeout=10)
-                token_resp = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
-                token = token_resp.token
-                _pg_token_cache["token"] = token
-                _pg_token_cache["expires_on"] = token_resp.expires_on
-            conn = psycopg2.connect(
-                host=host, dbname=dbname,
-                user="aimeelan-mi",
-                password=token,
-                sslmode="require",
-                connect_timeout=10,
-            )
-            return conn
-        except Exception as e:
-            print(f"PG Entra ID auth failed: {e}", flush=True)
+        now = time.time()
+        if _pg_token_cache["token"] and _pg_token_cache["expires_on"] > now + 60:
+            token = _pg_token_cache["token"]
+        else:
+            from azure.identity import DefaultAzureCredential
+            cred = DefaultAzureCredential(connection_timeout=10)
+            token_resp = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
+            token = token_resp.token
+            _pg_token_cache["token"] = token
+            _pg_token_cache["expires_on"] = token_resp.expires_on
+        conn = psycopg2.connect(
+            host=host, dbname=dbname,
+            user="aimeelan-mi",
+            password=token,
+            sslmode="require",
+            connect_timeout=10,
+        )
+        return conn
 
-    # Attempt 2: password auth (fallback / local dev)
+    # Local dev only
     user = _pg_parts.get("user", "postgres")
     password = _pg_parts.get("password", "postgres")
     conn = psycopg2.connect(
