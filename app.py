@@ -211,7 +211,7 @@ class _SQLiteCursor:
         sql = re.sub(r"SPLIT_PART\((\w+),\s*'@',\s*2\)",
                      r"SUBSTR(\1, INSTR(\1, '@') + 1)", sql, flags=re.IGNORECASE)
         sql = re.sub(r"\s+NULLS\s+LAST", "", sql, flags=re.IGNORECASE)
-        sql = re.sub(r"\b(first_day)\s*\+\s*(\d+)\b", r"date(\1, '+\2 days')", sql)
+        sql = re.sub(r"([\w.]+first_day)\s*\+\s*(\d+)", r"date(\1, '+\2 days')", sql)
         sql = sql.replace("%s", "?")
         return sql
 
