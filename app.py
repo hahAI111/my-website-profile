@@ -6,6 +6,7 @@ import hashlib
 import smtplib
 import csv
 import io
+import sqlite3
 import threading
 import time
 from email.mime.text import MIMEText
@@ -122,8 +123,8 @@ def _connect_redis():
 
     # Attempt 2: Managed Identity / Entra ID token auth
     try:
-        from azure.identity import DefaultAzureCredential
-        cred = DefaultAzureCredential()
+        from azure.identity import ManagedIdentityCredential
+        cred = ManagedIdentityCredential()
         token = cred.get_token("https://redis.azure.com/.default")
         client = redis.Redis(
             host=host, port=port,
@@ -166,11 +167,118 @@ def cache_delete(pattern):
         except Exception:
             pass
 
-# ── Database (PostgreSQL) ──────────────────────────────────
+# ── SQLite fallback (local development) ─────────────────────
+_USE_SQLITE = False
+_SQLITE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "local.db")
+
+_local_host = _pg_parts.get("host", "localhost")
+if not _local_host.endswith(".database.azure.com"):
+    try:
+        _test_conn = psycopg2.connect(
+            host=_local_host,
+            dbname=_pg_parts.get("dbname", "portfoliodb"),
+            user=_pg_parts.get("user", "postgres"),
+            password=_pg_parts.get("password", "postgres"),
+            connect_timeout=2,
+        )
+        _test_conn.close()
+    except Exception:
+        _USE_SQLITE = True
+        print("PostgreSQL not available — using SQLite (local.db) for development", flush=True)
+
+
+class _SQLiteCursor:
+    """Wraps sqlite3.Cursor to mimic psycopg2 cursor with dict rows."""
+
+    def __init__(self, cursor, dict_mode=False):
+        self._cur = cursor
+        self._dict_mode = dict_mode
+        self._returning = False
+
+    @property
+    def description(self):
+        return self._cur.description
+
+    def _translate(self, sql):
+        self._returning = bool(re.search(r"RETURNING\s+\w+", sql, re.IGNORECASE))
+        sql = re.sub(r"\s+RETURNING\s+\w+", "", sql, flags=re.IGNORECASE)
+        sql = re.sub(r"SERIAL\s+PRIMARY\s+KEY", "INTEGER PRIMARY KEY AUTOINCREMENT", sql, flags=re.IGNORECASE)
+        sql = re.sub(r"\bBOOLEAN\b", "INTEGER", sql, flags=re.IGNORECASE)
+        sql = re.sub(r"NOW\(\)\s*-\s*INTERVAL\s*'(\d+)\s+(\w+)'",
+                     r"datetime('now', '-\1 \2')", sql, flags=re.IGNORECASE)
+        sql = re.sub(r"NOW\(\)", "CURRENT_TIMESTAMP", sql, flags=re.IGNORECASE)
+        sql = re.sub(r"::\w+", "", sql)
+        sql = re.sub(r"SPLIT_PART\((\w+),\s*'@',\s*2\)",
+                     r"SUBSTR(\1, INSTR(\1, '@') + 1)", sql, flags=re.IGNORECASE)
+        sql = re.sub(r"\s+NULLS\s+LAST", "", sql, flags=re.IGNORECASE)
+        sql = re.sub(r"\b(first_day)\s*\+\s*(\d+)\b", r"date(\1, '+\2 days')", sql)
+        sql = sql.replace("%s", "?")
+        return sql
+
+    def execute(self, sql, params=None):
+        sql = self._translate(sql)
+        if params:
+            if "= ANY(?)" in sql:
+                param_list = list(params)
+                new_params = []
+                for p in param_list:
+                    if isinstance(p, (list, tuple)) and not isinstance(p, str):
+                        ph = ",".join(["?"] * max(len(p), 1))
+                        sql = sql.replace("= ANY(?)", f"IN ({ph})", 1)
+                        new_params.extend(p if p else [None])
+                    else:
+                        new_params.append(p)
+                params = tuple(new_params)
+            self._cur.execute(sql, params)
+        else:
+            self._cur.execute(sql)
+
+    def fetchone(self):
+        if self._returning:
+            self._returning = False
+            if self._cur.rowcount and self._cur.rowcount > 0:
+                return {"id": self._cur.lastrowid} if self._dict_mode else (self._cur.lastrowid,)
+            return None
+        row = self._cur.fetchone()
+        if row is None:
+            return None
+        return dict(row) if self._dict_mode else tuple(row)
+
+    def fetchall(self):
+        rows = self._cur.fetchall()
+        return [dict(r) for r in rows] if self._dict_mode else [tuple(r) for r in rows]
+
+    def close(self):
+        self._cur.close()
+
+
+class _SQLiteConn:
+    """Wraps sqlite3.Connection to mimic psycopg2 connection."""
+
+    def __init__(self, path):
+        self._conn = sqlite3.connect(path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA foreign_keys=ON")
+
+    def cursor(self, cursor_factory=None):
+        return _SQLiteCursor(self._conn.cursor(), dict_mode=cursor_factory is not None)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
+# ── Database (PostgreSQL / SQLite) ─────────────────────────
 _pg_token_cache = {"token": None, "expires_on": 0}
 
 def get_db():
-    """Connect to PostgreSQL using Managed Identity (Entra ID) on Azure, password locally."""
+    """Return a DB connection: SQLite locally, PostgreSQL on Azure."""
+    if _USE_SQLITE:
+        return _SQLiteConn(_SQLITE_PATH)
+
     host = _pg_parts.get("host", "localhost")
     dbname = _pg_parts.get("dbname", "portfoliodb")
 
@@ -181,7 +289,7 @@ def get_db():
             token = _pg_token_cache["token"]
         else:
             from azure.identity import ManagedIdentityCredential
-            cred = ManagedIdentityCredential()
+            cred = ManagedIdentityCredential(connection_timeout=10)
             token_resp = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
             token = token_resp.token
             _pg_token_cache["token"] = token
@@ -195,13 +303,13 @@ def get_db():
         )
         return conn
 
-    # Local dev only
+    # Local dev with PostgreSQL
     user = _pg_parts.get("user", "postgres")
     password = _pg_parts.get("password", "postgres")
     conn = psycopg2.connect(
         host=host, dbname=dbname,
         user=user, password=password,
-        sslmode="require",
+        sslmode="prefer",
         connect_timeout=10,
     )
     return conn
