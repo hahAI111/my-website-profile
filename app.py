@@ -143,6 +143,9 @@ def _connect_redis():
 
 redis_client = _connect_redis()
 
+# ── In-memory cache fallback (local dev without Redis) ─────
+_mem_cache = {}  # {key: (value, expires_at)}
+
 def cache_get(key):
     if redis_client:
         try:
@@ -150,6 +153,13 @@ def cache_get(key):
             return json.loads(val) if val else None
         except Exception:
             return None
+    # In-memory fallback
+    entry = _mem_cache.get(key)
+    if entry:
+        val, expires_at = entry
+        if time.time() < expires_at:
+            return val
+        del _mem_cache[key]
     return None
 
 def cache_set(key, value, ttl=300):
@@ -158,6 +168,8 @@ def cache_set(key, value, ttl=300):
             redis_client.setex(key, ttl, json.dumps(value))
         except Exception:
             pass
+        return
+    _mem_cache[key] = (value, time.time() + ttl)
 
 def cache_delete(pattern):
     if redis_client:
@@ -166,6 +178,12 @@ def cache_delete(pattern):
                 redis_client.delete(key)
         except Exception:
             pass
+        return
+    # In-memory fallback: simple glob-style match
+    import fnmatch
+    to_del = [k for k in _mem_cache if fnmatch.fnmatch(k, pattern)]
+    for k in to_del:
+        del _mem_cache[k]
 
 # ── SQLite fallback (local development) ─────────────────────
 _USE_SQLITE = False
@@ -1052,7 +1070,7 @@ def admin_stats():
     cur.close()
     conn.close()
 
-    # Redis cache info
+    # Redis / in-memory cache info
     redis_info = {"connected": False}
     if redis_client:
         try:
@@ -1075,6 +1093,25 @@ def admin_stats():
             }
         except Exception:
             redis_info = {"connected": True, "error": "Could not fetch Redis info"}
+    else:
+        # In-memory cache stats
+        now = time.time()
+        active_keys = {k for k, (_, exp) in _mem_cache.items() if exp > now}
+        redis_info = {
+            "connected": True,
+            "mode": "in-memory",
+            "used_memory_human": "local",
+            "peak_memory_human": "N/A",
+            "total_keys": len(active_keys),
+            "cached_endpoints": [
+                {"key_pattern": "stats:overview", "ttl": "60s", "purpose": "Admin dashboard KPIs & charts"},
+                {"key_pattern": "stats:retention", "ttl": "300s", "purpose": "Retention cohort analysis"},
+                {"key_pattern": "posts:list:*", "ttl": "120s", "purpose": "Blog listing with tag/page"},
+                {"key_pattern": "post:<slug>", "ttl": "300s", "purpose": "Single blog post content"},
+                {"key_pattern": "tags:all", "ttl": "300s", "purpose": "Tag list with counts"},
+                {"key_pattern": "projects:all", "ttl": "300s", "purpose": "GitHub projects list"},
+            ],
+        }
 
     result = {
         "visitors": visitors, "clicks": clicks, "messages": messages,
