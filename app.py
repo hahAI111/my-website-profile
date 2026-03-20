@@ -182,7 +182,7 @@ def get_db():
                 token = _pg_token_cache["token"]
             else:
                 from azure.identity import DefaultAzureCredential
-                cred = DefaultAzureCredential()
+                cred = DefaultAzureCredential(connection_timeout=10)
                 token_resp = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
                 token = token_resp.token
                 _pg_token_cache["token"] = token
@@ -192,6 +192,7 @@ def get_db():
                 user="aimeelan-mi",
                 password=token,
                 sslmode="require",
+                connect_timeout=10,
             )
             return conn
         except Exception as e:
@@ -204,6 +205,7 @@ def get_db():
         host=host, dbname=dbname,
         user=user, password=password,
         sslmode="require",
+        connect_timeout=10,
     )
     return conn
 
@@ -409,7 +411,7 @@ def _diag_db():
     # Test MI token
     try:
         from azure.identity import DefaultAzureCredential
-        cred = DefaultAzureCredential()
+        cred = DefaultAzureCredential(connection_timeout=10)
         token_resp = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
         results["mi_token"] = "OK (length={})".format(len(token_resp.token))
         results["mi_expires_on"] = token_resp.expires_on
@@ -418,11 +420,12 @@ def _diag_db():
     # Test MI PG connection
     try:
         from azure.identity import DefaultAzureCredential
-        cred = DefaultAzureCredential()
+        cred = DefaultAzureCredential(connection_timeout=10)
         tok = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
         conn = psycopg2.connect(
             host=_pg_parts.get("host", ""), dbname=_pg_parts.get("dbname", ""),
             user="aimeelan-mi", password=tok.token, sslmode="require",
+            connect_timeout=10,
         )
         cur = conn.cursor()
         cur.execute("SELECT 1")
@@ -437,6 +440,7 @@ def _diag_db():
             host=_pg_parts.get("host", ""), dbname=_pg_parts.get("dbname", ""),
             user=_pg_parts.get("user", ""), password=_pg_parts.get("password", ""),
             sslmode="require",
+            connect_timeout=10,
         )
         cur = conn.cursor()
         cur.execute("SELECT 1")
