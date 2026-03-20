@@ -174,14 +174,14 @@ def get_db():
     host = _pg_parts.get("host", "localhost")
     dbname = _pg_parts.get("dbname", "portfoliodb")
 
-    # Azure: Managed Identity only — no password fallback
+    # Azure: Managed Identity only
     if host.endswith(".database.azure.com"):
         now = time.time()
         if _pg_token_cache["token"] and _pg_token_cache["expires_on"] > now + 60:
             token = _pg_token_cache["token"]
         else:
-            from azure.identity import DefaultAzureCredential
-            cred = DefaultAzureCredential(connection_timeout=10)
+            from azure.identity import ManagedIdentityCredential
+            cred = ManagedIdentityCredential()
             token_resp = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
             token = token_resp.token
             _pg_token_cache["token"] = token
@@ -407,8 +407,8 @@ def _diag_db():
     results = {"pg_parts_host": _pg_parts.get("host", ""), "pg_parts_dbname": _pg_parts.get("dbname", "")}
     # Test MI token
     try:
-        from azure.identity import DefaultAzureCredential
-        cred = DefaultAzureCredential(connection_timeout=10)
+        from azure.identity import ManagedIdentityCredential
+        cred = ManagedIdentityCredential()
         token_resp = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
         results["mi_token"] = "OK (length={})".format(len(token_resp.token))
         results["mi_expires_on"] = token_resp.expires_on
@@ -416,8 +416,8 @@ def _diag_db():
         results["mi_token_error"] = str(e)
     # Test MI PG connection
     try:
-        from azure.identity import DefaultAzureCredential
-        cred = DefaultAzureCredential(connection_timeout=10)
+        from azure.identity import ManagedIdentityCredential
+        cred = ManagedIdentityCredential()
         tok = cred.get_token("https://ossrdbms-aad.database.windows.net/.default")
         conn = psycopg2.connect(
             host=_pg_parts.get("host", ""), dbname=_pg_parts.get("dbname", ""),
